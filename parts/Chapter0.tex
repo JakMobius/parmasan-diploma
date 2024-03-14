@@ -1,8 +1,139 @@
 \section{Введение}
 \label{sec:Chapter0} \index{Chapter0}
 
-В этой части надо описать предметную область, задачу из которой вы будете
-решать, объяснить её актуальность (почему надо что-то делать сейчас?). Здесь же
-стоит ввести определения понятий, которые вам понадобятся в постановке задачи.
+% В этой части надо описать предметную область, задачу из которой вы будете
+% решать, объяснить её актуальность (почему надо что-то делать сейчас?). Здесь же
+% стоит ввести определения понятий, которые вам понадобятся в постановке задачи.
 
-\newpage
+Состояние гонки -- - это ситуация, при которой поведение программы зависит от относительного порядка выполнения двух или более параллельных операций, и может меняться в зависимости от последовательности их выполнения. Это приводит к непредсказуемому поведению программы, и обусловлено, как правило, отсутствием синхронизации между потоками.
+
+При рассмотрении проблематики состояний гонки, в основном фокусируются на языках программирования прикладного уровня, таких как C++ или Java. Однако, такие проблемы также могут возникать в процессе сборки программного обеспечения, где примитивами синхронизации являются зависимости между целями сборки. Отсутствие необходимой зависимости может привести к состоянию гонки, аналогично отсутствующей синхронизации между процессами.
+
+\begin{figure}[H]
+	\centering
+	\caption{Процесс сборки проекта с состоянияем гонки в схеме сборки}
+    \begin{tikzpicture}
+        % Frame 1
+        \node[style=draw, minimum width=1.5cm] (libcpp) at (2,1.5) {lib.cpp};
+        \node[style=draw, minimum width=1.5cm] (libo) at (4,1.5) {lib.o};
+        \node[style=draw, minimum width=1.5cm] (liba) at (6,1.5) {lib.a};
+
+        \node[style=draw, minimum width=3cm] (appcpp) at (2.75,0) {app.cpp};
+        \node[style=draw, minimum width=3cm] (appo) at (6.25,0) {app.o};
+        \node[style=draw, minimum width=3cm] (app) at (9.75,0) {app};
+
+        \node[text width=5cm] at (10.5,1.1) {
+            \texttt{app} зависит от \texttt{lib.a}, но \textbf{не дожидается сборки}
+        };
+
+        % liba -> app
+        \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+        (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+
+        % Common
+        \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
+        \node at (0,1.5) {Поток 1:};
+        \node at (0,0) {Поток 2:};
+
+        % appo -> app
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+        ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
+
+        % Time text and arrow
+        \node[gray, font=\itshape] (time) at (11.4, -1.16) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
+
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
+    \end{tikzpicture}
+\end{figure}
+
+Выше изображен процесс сборки проекта. В нём исходный код приложения может собираться параллельно с библиотекой, которую он использует. Это является хорошей практикой и позволяет ускорить сборку всего проекта. Однако в этой схеме не указано, что перед компоновкой всего приложения необходимо дождаться, пока библиотека будет готова. На рисунке сверху это не приводит к ошибке, поскольку библиотека сама собой успела собраться быстрее, чем она потребовалась.
+
+Если бы для сборки библиотеки потребовалось бы больше времени, это бы привело к ошибке сборки всего проекта. Такое может произойти по непредсказуемым причинам, таким как расширение самой библиотеки, выход из строя секторов диска, или высокая нагрузка на систему.
+
+\begin{figure}[H]
+	\centering
+	\caption{Ошибка при сборке проекта с состоянияем гонки в схеме сборки}
+    \begin{tikzpicture}
+        \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
+        \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
+        \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
+
+        \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
+        \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
+        \node[style=draw, minimum width=2cm] (app) at (7.25,0) {app};
+        \node[red, style=draw, minimum width=2cm] (ошибка) at (9.75,0) {ошибка};
+
+        \node[red, style=draw, dashed, minimum width=4cm] (error) at (3.5,0.75) {lib.a еще не готова};
+
+        \draw[red, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+        (error) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+
+        \draw[red, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (app) -- (ошибка);
+
+        % Common
+        \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
+        \node at (0,1.5) {Поток 1:};
+        \node at (0,0) {Поток 2:};
+
+        % appo -> app
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+        ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
+
+        % Time text and arrow
+        \node[gray, font=\itshape] (time) at (11.4, -1.16) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
+
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
+    \end{tikzpicture}
+\end{figure}
+
+В такой ситуации перед разработчиком стоит выбор: попробовать собрать проект повторно, или потратить время на поиск недостающей зависимости и исправление схемы. 
+
+\begin{figure}[H]
+	\centering
+	\caption{Исправленная схема сборки без состояния гонки}
+    \begin{tikzpicture}
+        % Frame 3
+        \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
+        \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
+        \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
+
+        \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
+        \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
+        \node[style=draw, minimum width=2cm] (app) at (10.8,0) {app};
+
+        \node[text width=4.5cm] at (12.5,1.1) {
+            \small{Поток 2 ждёт сборки \texttt{lib.a} перед сборкой \texttt{app}}
+        };
+
+        % liba -> app
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+        (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+
+        % Common
+        \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
+        \node at (0,1.5) {Поток 1:};
+        \node at (0,0) {Поток 2:};
+
+        % appo -> app
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+        ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
+
+        % Time text and arrow
+        \node[gray, font=\itshape] (time) at (11.4, -1.16) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
+
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
+    \end{tikzpicture}
+\end{figure}
+
+Настоящие схемы сборки, как правило, выглядят значительно сложнее, и найти в них недостающую зависимость становится трудно. В связи с этим состояния гонки могут долго оставаться неисправленными. Как будет продемонстрировано в дальнейшем в этой работе, даже такие проекты, как Vim и Strace, над которыми трудятся тысячи разработчиков по всему миру, имеют состояния гонок в своих схемах сборки.
+
+Опасность этих гонок заключается в том, что оставаясь скрытыми, они могут проявляться самым нежелательным образом. Наиболее частый симптом, наблюдаемый при наличии такой проблемы в схеме --- спонтанная ошибка при сборке, которая исчезает при повторной попытке собрать проект. Существует и более опасный сценарий, при котором такая ошибка может приводить к скрытым проблемам. Например, к некорректно собранным файлам локализации или к уязвимости в распространяемом исполняемом файле.
