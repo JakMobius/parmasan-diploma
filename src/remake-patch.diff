@@ -1,0 +1,65 @@
+diff --git a/src/function.c b/src/function.c
+index 6a578ada..3dc44079 100644
+--- a/src/function.c
++++ b/src/function.c
+@@ -1712,7 +1712,7 @@ func_shell_base (char *o, char **argv, int trim_newlines)
+     child.output.err = errfd;
+     child.environment = envp;
+ 
+-    pid = child_execute_job (&child, 1, command_argv);
++    pid = child_execute_job (&child, 1, command_argv, NULL);
+ 
+     free (child.cmd_name);
+   }
+diff --git a/src/job.c b/src/job.c
+index a4a40df4..fae40f94 100644
+--- a/src/job.c
++++ b/src/job.c
+@@ -1277,7 +1277,8 @@ start_job_command (child_t *child,
+       jobserver_pre_child (flags & COMMANDS_RECURSE);
+ 
+       child->pid = child_execute_job ((struct childbase *)child,
+-                                      child->good_stdin, argv);
++                                      child->good_stdin, argv,
++                                      child->file->name);
+ 
+       environ = parent_environ; /* Restore value child may have clobbered.  */
+       jobserver_post_child (flags & COMMANDS_RECURSE);
+@@ -1998,12 +1999,13 @@ start_waiting_jobs (target_stack_node_t *p_call_stack)
+    Create a child process executing the command in ARGV.
+    Returns the PID or -1.  */
+ pid_t
+-child_execute_job (struct childbase *child, int good_stdin, char **argv)
++child_execute_job (struct childbase *child, int good_stdin, char **argv, char* target_name)
+ {
+   const int fdin = good_stdin ? FD_STDIN : get_bad_stdin ();
+   int fdout = FD_STDOUT;
+   int fderr = FD_STDERR;
+   pid_t pid;
++  pid_t ppid = getpid();
+   int r;
+ #if defined(USE_POSIX_SPAWN)
+   char *cmd;
+@@ -2026,6 +2028,8 @@ child_execute_job (struct childbase *child, int good_stdin, char **argv)
+   pid = vfork();
+   if (pid != 0)
+     return pid;
++  else if (target_name)
++    printf("remake: Spawned process, ppid=%d, pid=%d, target=%s\n", ppid, getpid(), target_name);
+ 
+   /* We are the child.  */
+   unblock_all_sigs ();
+diff --git a/src/job.h b/src/job.h
+index eaf6f8fd..ab3fa0a6 100644
+--- a/src/job.h
++++ b/src/job.h
+@@ -82,7 +82,8 @@ extern void start_waiting_jobs (target_stack_node_t *p_call_stack);
+ char **construct_command_argv (char *line, char **restp, struct file *file,
+                                int cmd_flags, char** batch_file);
+ 
+-pid_t child_execute_job (struct childbase *child, int good_stdin, char **argv);
++pid_t child_execute_job (struct childbase *child, int good_stdin, char **argv,
++			 char* target_name);
+ 
+ // void exec_command (char **argv, char **envp) NORETURN;
+ void exec_command (char **argv, char **envp);
