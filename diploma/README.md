@@ -1,0 +1,1 @@
+В этом репозитории я потихоньку пишу свой диплом. Шаблон взят [отсюда](https://github.com/pavel-collab/Bachelor-Thesis-Template)

@@ -1,0 +1,1220 @@
+%&fmt.out/fmt
+
+\begin{document}
+%    \includeonlyframes{current}
+
+    \title{Инструмент автоматического обнаружения гонок в параллельных сборках на основе Make}
+    \subtitle{Метод и реализация}
+    \date{4 декабря 2023 г.}
+    \author{Артем Климов, Владислав Иванишин, Александр Монаков}
+    \institute{\!\includegraphics[width=10em]{logo_EN_basic.png}}
+
+    \captionsetup{font=footnotesize,labelformat=empty}
+
+%% /usr/share/texlive/texmf-dist/tex/latex/beamertheme-metropolis/beamerinnerthememetropolis.sty
+    \setbeamertemplate{title page}{
+        \begin{minipage}[b][\paperheight]{\textwidth}
+            \vspace*{1mm}
+            \vfill%
+            \ifx\inserttitle\@empty\else\usebeamertemplate*{title}\fi
+            \ifx\insertsubtitle\@empty\else\usebeamertemplate*{subtitle}\fi
+%%     \usebeamertemplate*{title separator}
+            \ifx\beamer@shortauthor\@empty\else\usebeamertemplate*{author}\fi
+            \ifx\insertdate\@empty\else\usebeamertemplate*{date}\fi
+            \ifx\insertinstitute\@empty\else\usebeamertemplate*{institute}\fi
+            \ifx\inserttitlegraphic\@empty\else\usebeamertemplate*{title graphic}\fi
+            \vfill
+            \vspace*{2mm}
+        \end{minipage}
+    }
+
+    \begin{frame}[label=current,plain] % Don't show slide number on the title slide.
+        \titlepage
+        \note{
+            Добрый день. Меня зовут Артем, я представляю работу "Автоматическое обнаружение гонок в параллельных
+            сборках на основе Make".
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{План презентации}
+        \begin{itemize}
+            \setlength\itemsep{1.1em}
+            \item \textbf{Введение}. Состояния гонок в Makefile. Примеры и формулировка проблемы.
+            \item \textbf{Теоретический метод} автоматического обнаружения состояний гонок.
+            \item \textbf{Реализация} метода в виде сантизатора для Make.
+            \item \textbf{Оценка} сантизатора на реальных проектах, \textbf{сравнение} с существующими решениями. \textbf{Заключение}.
+        \end{itemize}
+
+        \note{
+            В рамках этой работы мы исследуем проблему состояний гонок в схемах сборки и подробно
+            рассмотрим новый разработанный нами инструмент, с помощью которого их можно значительно
+            легче обнаруживать.
+        }
+    \end{frame}
+
+    \section{Введение}
+
+    \begin{frame}[label=current]{Введение: Состояния гонок}
+
+        \textbf{Состояние гонки} --- ситуация, когда несколько потоков работают с одним и тем же ресурсом одновременно,
+        и результат выполнения программы зависит от порядка выполнения потоков.
+
+        \begin{itemize}
+            \item Одновременное чтение и запись в одно и то же место памяти.
+            \item Создание каталога и одновременная работа с его содержимым.
+            \item Удаление ресурса без ожидания окончания его использования.
+        \end{itemize}
+
+        \note{
+            Итак, напомним, что такое состояние гонки в целом. Это ситуация, когда несколько потоков одновременно работают с \textbf{одним}
+            ресурсом, и результат выполнения программы зависит от \textbf{порядка}, в котором они выполняются.
+        }
+
+    \end{frame}
+
+    \begin{frame}[label=current]{Введение: Состояния гонок}
+
+        Пример: Два потока пытаются увеличить переменную \texttt{counter}, если она меньше 1.
+
+        \lstinputlisting[language=C++]{src/racesample.cpp}
+
+        Если выполнение будет напланировано неудачно, \texttt{counter} может быть увеличено дважды, и
+        окончательное значение будет равно 2.
+
+        \note{
+            Здесь представлен классический пример гонки на языке C++. Два потока пытаются увеличить переменную counter,
+            если она меньше 1. Если выполнение \textbf{программы} будет спланировано \textbf{неудачно}, то обе проверки будут проведены
+            \textbf{раньше}, чем оба увеличения, и в итоге значение counter будет равно 2.
+        }
+
+    \end{frame}
+
+    \begin{frame}[label=current]{Введение: Состояния гонки в схемах сборки}
+        \begin{itemize}
+            \item Системы сборки могут компилировать несколько целей одновременно.
+            \item Если две цели взаимодействуют с одним и тем же файлом во время параллельной сборки, может возникнуть состояние гонки.
+        \end{itemize}
+
+        \begin{center}
+            \begin{tikzpicture}
+                % Frame 1
+                \only<1> \node[style=draw, minimum width=1.5cm] (libcpp) at (2,1.5) {lib.cpp};
+                \only<1> \node[style=draw, minimum width=1.5cm] (libo) at (4,1.5) {lib.o};
+                \only<1> \node[style=draw, minimum width=1.5cm] (liba) at (6,1.5) {lib.a};
+
+                \only<1> \node[style=draw, minimum width=3cm] (appcpp) at (2.75,0) {app.cpp};
+                \only<1> \node[style=draw, minimum width=3cm] (appo) at (6.25,0) {app.o};
+                \only<1> \node[style=draw, minimum width=3cm] (app) at (9.75,0) {app};
+
+                \only<1> \node[text width=3cm] at (9.5,1.1) {
+                    \textit{\texttt{app} зависит от \texttt{lib.a}, но \textbf{не дожидается его}}
+                };
+
+                % liba -> app
+                \only<1> {
+                    \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                    (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+                }
+
+                \mode<beamer>{
+
+                    % Frame 2
+                    \only<2> \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
+                    \only<2> \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
+                    \only<2> \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
+
+                    \only<2> \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
+                    \only<2> \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
+                    \only<2> \node[style=draw, minimum width=2cm] (app) at (7.25,0) {app};
+                    \only<2> \node[red, style=draw, minimum width=2cm] (failure) at (9.75,0) {ошибка};
+
+                    \only<2> \node[red, style=draw, dashed, minimum width=2cm] (error) at (4,0.75) {lib.a не готово};
+
+                    \only<2> {
+                        \draw[red, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                        (error) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+                    }
+
+                    \only<2> \draw[red, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (app) -- (failure);
+
+                    % Frame 3
+                    \only<3> \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
+                    \only<3> \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
+                    \only<3> \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
+
+                    \only<3> \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
+                    \only<3> \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
+                    \only<3> \node[style=draw, minimum width=2cm] (app) at (10.8,0) {app};
+
+                    \only<3> \node[text width=3cm] at (7.8,0.55) {
+                        \small{\textit{поток 2 ожидает \texttt{lib.a} перед связыванием приложения \texttt{app}}}
+                    };
+
+                    % liba -> app
+                    \only<3> {
+                        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                        (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+                    }
+
+                }
+
+                % Common
+                \node[minimum width=13cm, minimum height=3.5cm] (sizer) at (5.5,0.3) {};
+                \node at (0,1.5) {Поток 1:};
+                \node at (0,0) {Поток 2:};
+
+                % appo -> app
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
+
+                % Time text and arrow
+                \node[gray, font=\itshape] (time) at (5.5, -1.0) {время};
+                \draw[gray, line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
+
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
+            \end{tikzpicture}
+        \end{center}
+
+        \pause
+        \begin{itemize}
+            \item Что если сборка библиотеки займет больше времени?
+            \pause
+            \item \textbf{Решение:} Определить пропущенную зависимость и добавить ее в схему сборки.
+        \end{itemize}
+
+        \note{
+            Это был пример на C++, а теперь давайте поговорим о том, как состояния гонок могут возникать при сборке
+            проектов.
+
+            На слайде изображен процесс сборки некоторого проекта. В нем \textbf{библиотека} "lib" может собираться
+            параллельно с \textbf{приложением}, которое ее использует.
+
+            Однако в схеме сборки не указано, что для связывания приложения необходимо дождаться сборки библиотеки, и здесь
+            \textbf{разработчику повезло}, и библиотека сама собой успела собраться к моменту связывания. Но если
+            разработчику повезет \textbf{меньше} и сборка библиотеки \textbf{затянется}, то сборка всего проекта
+            завершится неудачей.
+
+            В этом случае разработчик вынужден либо перезапустить сборку и надеяться на лучшее, либо найти недостающую
+            зависимость и добавить ее в схему сборки.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Введение: Состояния гонок в реальных проектах}
+
+        Такие проблемы иногда встречаются даже в крупных проектах.
+        Они могут быть подтверждены следующими сообщениями об ошибках:
+
+        \begin{itemize}
+            \item Vim:
+            \lstinputlisting[
+                basicstyle=\small\ttfamily,
+                numbers=none
+            ]{src/vim-race.txt}
+
+            \item strace:
+            \lstinputlisting[
+                basicstyle=\small\ttfamily,
+                numbers=none
+            ]{src/strace-race.txt}
+        \end{itemize}
+
+        \note{
+            Состояния гонок коварны тем, что являются скрытой проблемой, которая может проявиться самым нежелательным
+            образом. Спонтанная ошибка сборки - даже не самое страшное ее проявление. Например, состояния гонок могут
+            приводить к уязвимостям и другим проблемам в собранном проекте. Позже мы рассмотрим такой пример.
+
+            Связи с их скрытостью, их сложно искать людям. Даже в таких проектах, как Vim, над которым трудятся тысячи
+            разработчиков, такие гонки присутствуют и остаются незамеченными.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Введение: Формулировка проблемы}
+
+        Состояния гонок в схемах сборки могут быть \textbf{трудны для отладки:}
+
+        \begin{itemize}
+            \item Сценарий гонки может редко воспроизводиться.
+            \item \texttt{make --shuffle} --- случайная переупорядочивание независимых целей.
+            Это помогает, но не гарантирует обнаружение гонки.
+        \end{itemize}
+
+        \pause
+        \textbf{Цель исследования:} Облегчить для разработчиков поиск и отладку состояний гонок в их схемах сборки.
+
+        \textit{В качестве целевой системы сборки была выбрана Make из-за ее популярности.}
+
+        \note{
+            И их действительно сложно отлаживать. Зачастую состояния гонок проявляются как \textbf{плавающие баги},
+            которые трудно и редко \textbf{воспроизводятся}.
+
+            На сегодняшний день существует только один известный мне инструмент, который облегчает эту задачу.
+            Это флаг \texttt{make --shuffle}, который позволяет случайным образом менять порядок сборки
+            независимых целей, чтобы увеличить шанс проявления гонки. Однако, это требует полной пересборки проекта,
+            может быть даже многократной. К тому же, так можно найти не все гонки, и позже мы к этому вернемся.
+
+            Так мы приходим к \textbf{цели} нашего исследования: разработать инструмент, с помощью которого такие гонки
+            можно будет искать автоматически, чтобы помочь разработчикам избежать таких проблем в своих проектах.
+
+            Мы решили использовать систему Make, поскольку она достаточно популярна как сама по себе, так и в качестве
+            бекенда для других систем.
+        }
+    \end{frame}
+
+    \section{Теоретический метод}
+
+    \newcommand{\raceframe}[2]{
+        \begin{frame}[label=current]
+            \frametitle{Теоретический метод: #1}
+
+            \conditionalText{#2}{1}{Самые частые состояния гонок, встречающиеся в реальных проектах, можно разделить на три категории:}
+
+            \begin{itemize}
+                \ifnum#2>2 \allgray \fi
+                \ifnum#2=1 \allblack \fi
+                \item \textbf{Гонка на содержимом файла.}
+                \ifnum#2<3 \allgray \fi
+                \ifnum#2=3 \allblack \fi
+                \ifnum#2>3 \allgray \fi
+                \ifnum#2=1 \allblack \fi
+                \item \textbf{Гонка на путь к файлу.}
+                \ifnum#2<4 \allgray \fi
+                \ifnum#2=4 \allblack \fi
+                \ifnum#2=1 \allblack \fi
+                \item \textbf{Гонка между созданием каталога и файлом в нем.}
+            \end{itemize}
+
+            \vfill
+        \end{frame}
+
+        \ifnum #2=1
+        \note{
+            Самые \textbf{частые} состояния гонок, которые встречаются в \textbf{реальных} проектах, можно разделить на три
+            категории. \textbf{Каждая} из них требует \textbf{свой подход} к обнаружению. Мы рассмотрим их
+            \textbf{по очереди}.
+        }
+        \fi
+
+        \ifnum #2=2
+        \note{
+            \textbf{Первая категория:} гонки на содержимом файлов.
+        }
+        \fi
+
+        \ifnum #2=3
+        \note{
+            \textbf{Вторая категория:} гонки на путях к файлам.
+        }
+        \fi
+
+        \ifnum #2=4
+        \note{
+            \textbf{Третья категория:} гонки между созданием каталога и его содержимым.
+        }
+        \fi
+    }
+
+    \raceframe{Типы гонок}{1}
+    \raceframe{Гонка на содержимом файла}{2}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+
+        В следующем Makefile присутствует гонка на содержимом файла \texttt{file.out}
+
+        \begin{columns}[t]
+            \begin{column}{.3 \textwidth}
+                \newline
+                \only<1,2>{
+                    \lstinputlisting[
+                        aboveskip=-\baselineskip,
+                        basicstyle=\ttfamily,
+                        language=bash,
+                        escapechar=\%,
+                        morekeywords={all, write_a, append_b}
+                    ]{src/file-content-race-1.make}
+                }
+                \only<3>{
+                    \lstinputlisting[
+                        aboveskip=-\baselineskip,
+                        basicstyle=\ttfamily,
+                        language=bash,
+                        escapechar=\%,
+                        morekeywords={all, write_a, append_b}
+                    ]{src/file-content-race-1-fixed.make}
+                }
+            \end{column}
+            \begin{column}{.4 \textwidth}
+                \newline \newline \newline
+                \textit{\texttt{'a'} записывается в \texttt{file.out}}
+                \newline
+                \textit{из цели \texttt{write\_a}.}
+                \newline
+                \newline
+                \textit{\texttt{'b'} добавляется к}
+                \newline
+                \textit{тому же файлу из цели}
+                \newline
+                \textit{\texttt{append\_b}.}
+            \end{column}
+        \end{columns}
+
+        \vspace{1.2em}
+        \visible<2->{
+            \texttt{write\_a} и \texttt{append\_b} независимы, их порядок выполнения
+            не определен.
+
+            \texttt{file.out} может содержать \texttt{'ab'} или \texttt{'a'}.
+        }
+
+        \visible<3->{
+            \textbf{Исправление:} Сделать \texttt{append\_b} зависимым от \texttt{write\_a}
+        }
+
+        \note{
+            Рассмотрим этот тип гонки на примере.
+
+            В этом мейкфайле цели \keyword{write\_a} и \keyword{append\_b} записывают какой-то текст в один и тот же
+            файл. Однако они не зависят друг от друга, то есть \textbf{порядок} их \textbf{выполнения} не определён.
+
+            В результате в файле \texttt{file.out} может оказаться либо \texttt{'ab'}, либо \texttt{'a'}.
+
+            Чтобы исправить эту ситуацию, нужно сделать цель \texttt{append\_b} зависимой от \texttt{write\_a}.
+
+            Итак, сейчас мы посмотрели на мейкфайл глазами, увидели проблему, и поняли, что надо сделать, чтобы её решить...
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+        \begin{center}
+            \textbf{\large{Как можно обнаружить такие состояния гонок?}}
+        \end{center}
+
+        \note{
+            ...Но как можно обнаруживать такие гонки автоматически?
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+        Запустите сборку под \textbf{strace}.
+
+        Strace - это утилита Linux, которая перехватывает и выводит системные вызовы и сигналы.
+
+        \lstinputlisting[morekeywords={O_WRONLY,O_TRUNC,O_APPEND}]{src/strace-log.txt}
+
+        Журнал strace показывает, что \texttt{file.out} был открыт из двух разных процессов для записи и
+        дозаписи (как флаги \texttt{O\_TRUNC} и \texttt{O\_APPEND} указывают).
+
+        \note{
+            Давайте представим, что мы собираем проект под strace.
+
+            Strace - это утилита, которая перехватывает системные вызовы и сигналы, и печатает их в консоль.
+
+            На самом деле мы не будем использовать strace в готовом инструменте, но на таком примере будет проще
+            понять, что на самом деле происходит.
+
+            Итак, в логе strace для нашего примера видно, что файл \texttt{file.out} открывается двумя разными
+            процессами.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+        Путем обработки журнала и сопоставления процессов с целями можно получить более
+        информативный журнал событий.
+
+        \lstinputlisting[
+            language=bash,
+            alsoletter={-},
+            morekeywords={write,read-write,write_a,append_b}
+        ]{src/strace-log-informative-1.txt}
+
+        \pause
+        Граф зависимостей схемы сборки выглядит следующим образом:
+
+        \begin{center}
+            \begin{tikzpicture}[every node/.style = draw]
+                \node[inner xsep=7pt] (append) at (0,0) {append\_b};
+                \node[inner xsep=7pt] (write) at (0,1.2) {write\_a};
+                \node[inner xsep=7pt] (all) at (3,0.6) {all};
+
+
+                \only<3> \draw[line width=1pt, shorten >=2pt, shorten <=2pt, <->] (append) -- (write);
+                \only<3> \draw[red, line width=1pt, -] (-0.2,0.5) -- (0.2,0.7);
+                \only<3> \draw[red, line width=1pt, -] (0.2,0.5) -- (-0.2,0.7);
+
+                \graph {
+                    (write) ->[line width=1pt, shorten >=2pt, shorten <=2pt] (all);
+                    (append) ->[line width=1pt, shorten >=2pt, shorten <=2pt] (all);
+                };
+            \end{tikzpicture}
+        \end{center}
+        \pause
+        Так как между \texttt{write\_a} и \texttt{append\_b} нет ориентированного пути, цели являются независимыми. Можно сообщить о гонке.
+
+        \note {
+            Если обработать этот лог и заменить процессы на имена целей, то можно получить более информативную
+            последовательность событий, из которой можно зафиксировать, что цели \keyword{write\_a} и \keyword{append\_b}
+            записывают что-то в один и тот же файл.
+
+            Теперь обратимся к графу зависимостей. В нем видно, что цели \keyword{write\_a} и \keyword{append\_b} не
+            зависят друг от друга --- между ними нет ориентированного пути. А поскольку прежде мы зафиксировали
+            что они записывают что-то в один и тот же файл --- мы можем справедливо заявить о гонке.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+        \textbf{Обзор алгоритма:}
+        \begin{enumerate}
+            \item Получить журнал событий:
+
+            \begin{itemize}
+                \item Запустите сборку под strace.
+                \item Сопоставьте процессы с целями. \only<2->{\textcolor{red}{--- Как?}}
+                \item Переформатируйте журнал.
+            \end{itemize}
+            \item Получите граф зависимостей схемы сборки. \only<2->{\textcolor{red}{\strut --- Как?}}
+            \item Для каждой пары конфликтующих доступов к одному и тому же \only<1,2>{\colorbox{white}{\strut пути файла}}\only<3>{\colorbox{diffrem}{\strut пути файла}}: \visible<3->{\textcolor{red}{--- Что насчет жестких ссылок?}}
+
+            \begin{itemize}
+                \item \textbf{Найти зависимость} между соответствующими целями.
+                \item \textbf{Если отсутствует}, сообщить о \textbf{состоянии гонки}.
+            \end{itemize}
+        \end{enumerate}
+
+        \note {
+            Итак, давайте кратко подытожим вышесказанное. Чтобы автоматически находить гонки, нужно
+            получить лог событий, граф зависимостей, а после для каждой пары конфликтующих доступов
+            убедиться, что цели, которые их совершили, зависят друг от друга, то есть между ними есть
+            ориентированный путь в графе зависимостей. Если его нет, то это гонка, и о ней можно сообщить.
+
+            Однако, есть несколько проблем. Во-первых --- неясно, как сопоставить процессы с целями, которые они собирали.
+            Во-вторых --- нам нужно как-то получить граф зависимостей, и это нетривиальная задача. Но эти две проблемы
+            мы отложим на потом, а сейчас сосредоточимся на другом --- что делать с жёсткими ссылками?
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+        \textbf{Жесткие ссылки} - это несколько имен для одного и того же файла в файловой системе. Они создаются с помощью команды \texttt{ln}.
+
+        \begin{columns}[t]
+            \begin{column}{.35 \textwidth}
+                \newline
+                \lstinputlisting[
+                    aboveskip=-\baselineskip,
+                    basicstyle=\ttfamily,
+                    language=bash,
+                    morekeywords={all}
+                ]{src/file-content-race-2.make}
+            \end{column}
+            \begin{column}{.5 \textwidth}
+                \newline \newline \newline \newline
+                \textit{\texttt{hardlink\_a} и \texttt{hardlink\_b} - жесткие ссылки на \texttt{file.out}}
+                \newline
+                \newline
+                \newline
+                \textit{\texttt{'a'} записывается в \texttt{hardlink\_a} из цели}
+                \newline
+                \texttt{write\_a}
+                \newline
+                \newline
+                \textit{\texttt{'b'} добавляется к \texttt{hardlink\_b} из цели}
+                \newline
+                \texttt{append\_b}
+            \end{column}
+        \end{columns}
+
+        \note {
+            Жёсткие ссылки позволяют давать одному и тому же файлу несколько путей в файловой системе.
+            Они могут сбить с толку наш алгоритм, поскольку он полагается на то, что каждый файл уникально
+            идентифицируется своим путём.
+
+            В этом мейкфайле происходит то же самое, что и в предыдущем, но цели \keyword{write\_a} и \keyword{append\_b}
+            работают с одним и тем же файлом не напрямую, а через две разные жесткие ссылки.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+        Журнал событий для приведенного выше примера:
+
+        \lstinputlisting[
+            language=bash,
+            alsoletter={.},
+            morekeywords={write,file.out,write\_a,append\_b}
+        ]{src/strace-log-informative-2.txt}
+
+        Все три пути в журнале событий различаются. Состояние гонки не обнаружена.
+
+        \pause
+
+        \textbf{Исправление:} Используйте \textbf{номера inode} вместо путей к файлам.
+
+        \note{
+            Из-за этого в логе событий все доступы к этому файлу производятся через разные пути.
+            Поэтому наш алгоритм не сможет обнаружить гонку - он будет думать, что все эти доступы относятся
+            к трём разным файлам.
+
+            Это можно исправить, если вместо путей к файлу использовать номера \texttt{inode}.
+        }
+
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+        \textbf{inode} - это уникальный идентификатор файла в файловой системе. Он гарантированно будет иметь одно и
+        то же значение для
+        жестких ссылок на один и тот же файл.
+
+        Замените пути к файлам на номера inode:
+
+        \lstinputlisting[
+            language=bash,
+            alsoletter={.},
+            morekeywords={write,file.out,write_a,append_b}
+        ]{src/strace-log-informative-2-inode.txt}
+
+        \note {
+            \texttt{inode} --- это уникальный идентификатор файла в файловой системе. Он гарантированно будет иметь одно и
+            то же значение для всех жёстких ссылок на один и тот же файл.
+
+            Если заменить пути к файлам на номера \texttt{inode}, то теперь \textbf{можно} увидеть, что эти три доступа на самом деле
+            производятся к одному и тому же файлу.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на содержимом файла}
+        \textbf{Обновленный алгоритм:}
+        \begin{enumerate}
+            \item Получить лог событий
+
+            \begin{itemize}
+                \item Запустить сборку под strace \colorbox{diffadd}{с логированием номера inode.}
+                \item Сопоставьте процессы с целями.
+                \item Переформатируйте журнал.
+            \end{itemize}
+            \item Получите граф зависимостей схемы сборки.
+            \item Для каждой пары конфликтующих доступов к одному и тому же \colorbox{diffrem}{\sout{\vphantom{fp}пути файла}}
+            \colorbox{diffadd}{\vphantom{fp}номеру inode}:
+
+            \begin{itemize}
+                \item Найдите зависимость между соответствующими целями.
+                \item Если отсутствует, сообщить о состоянии гонки.
+            \end{itemize}
+        \end{enumerate}
+
+        Этот алгоритм может найти состояния гонок даже при использовании жестких ссылок.
+
+        \textbf{Примечание:} номера inode могут быть повторно использованы.
+
+        \note {
+            И теперь, если соответствующим образом отредактировать сам алгоритм поиска, то он корректно
+            найдет гонку из последнего примера.
+
+            Однако при реализации алгоритма нужно быть внимательным, поскольку номера \texttt{inode} могут быть переиспользованы.
+            Если игнорировать этот факт, то можно получить ложные срабатывания.
+        }
+    \end{frame}
+
+    \raceframe{Гонка на путь к файлу}{3}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на путь к файлу}
+
+        В следующем Makefile присутствует гонка на пути \texttt{tmp\_file}
+
+        \begin{columns}[t]
+            \begin{column}{.45 \textwidth}
+                \newline
+                \lstinputlisting[
+                    aboveskip=-\baselineskip,
+                    basicstyle=\ttfamily,
+                    language=bash,
+                    morekeywords={all, something, something_else, rm}
+                ]{src/file-path-race-3.make}
+            \end{column}
+            \begin{column}{.4 \textwidth}
+                \newline \newline \newline \newline
+                \texttt{tmp\_file} используется для хранения некоторых промежуточных данных.
+                \newline
+                Он удаляется после сборки цели.
+                \newline \newline \newline
+                То же имя используется для хранения
+                \newline
+                промежуточных данных в другой
+                \newline
+                независимой цели.
+            \end{column}
+        \end{columns}
+
+        Это состояние гонка, потому что команда \texttt{rm} может быть выполнена, когда другая цель все еще использует файл.
+
+        \note {
+            В этом примере присутствуют две независимые цели, использующие один и тот же временный файл \texttt{tmp\_file}.
+            В каждой из них файл создается, используется, а потом удаляется.
+
+            Это гонка, поскольку команда \texttt{rm} может быть выполнена, пока другая цель ещё использует файл.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на путь к файлу}
+        Журнал событий для приведенного выше примера:
+
+        \lstinputlisting[
+            language=bash,
+            morekeywords={write, unlink, write_a, append_b}
+        ]{src/strace-log-informative-3.txt}
+
+        Файл \texttt{tmp\_file} изменил свой номер inode после его удаления и повторного создания. Алгоритм, основанный на номерах inode, не сможет найти гонку здесь.
+
+        \pause
+        \textbf{Исправление:} Используйте пути к файлам в дополнение к номерам inode только для обнаружения гонок, включающих удаление файла.
+
+        \note {
+            Рассмотрим лог событий для этого примера. Можно заметить, что после удаления и повторного создания наш
+            временный файл получил другой номер \texttt{inode}. Поэтому алгоритм, основанный на номерах \texttt{inode},
+            не сможет обнаружить эту гонку.
+
+            С другой стороны, если бы мы всё еще использовали пути к файлам, то смогли бы обнаружить эту гонку, поскольку
+            встретили бы конфликтующие доступы на удаление и запись из разных целей.
+
+            Из этого можно сделать вывод, что в дополнение к номерам \texttt{inode} всё-таки нужно использовать пути к
+            файлам. Но это нужно только для обнаружения гонок с участием удаления. По этой причине эти гонки и
+            были вынесены во вторую категорию --- для них требуется немного другой алгоритм.
+        }
+    \end{frame}
+
+    \raceframe{Гонка на каталог}{4}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на каталог}
+        \begin{columns}[t]
+            \begin{column}{.35 \textwidth}
+                Другой распространенный шаблон состояния гонок:
+
+                \vspace{2.5em}
+                \lstinputlisting[
+                    aboveskip=-\baselineskip,
+                    basicstyle=\ttfamily,
+                    language=bash,
+                    morekeywords={all, mkdir}
+                ]{src/directory-race-4.make}
+
+                \vspace{1.5em}
+                Если команда \texttt{echo} будет выполнена до команды \texttt{mkdir}, произойдет ошибка.
+            \end{column}
+            \begin{column}{.55 \textwidth}
+                \pause
+                Для обнаружения таких состояний гонок необходимо записывать два события для каждого доступа к файлу:
+                \begin{itemize}
+                    \item Сам доступ к файлу
+                    \item Специальное событие \keyword{dir\_lookup} для родительского каталога
+                \end{itemize}
+
+                Новый журнал событий:
+
+                \lstinputlisting[
+                    language=bash,
+                    alsoletter={/, .},
+                    morekeywords={write, unlink, build, build/a.out, dir_lookup},
+                    escapechar=\%,
+                    basicstyle=\small\ttfamily
+                ]{src/strace-log-informative-4.txt}
+
+                Теперь алгоритм, основанный на номерах inode, обнаружит гонку на каталоге \texttt{build}
+            \end{column}
+        \end{columns}
+
+        \note {
+            Название категории говорит само за себя. Одна цель создаёт папку, а другая создаёт в ней какой-то файл.
+            Однако, зависимость между этими целями не указана, и если они исполнятся в обратном порядке, то
+            произойдет ошибка.
+
+            Наш алгоритм пока не умеет находить такие гонки, поскольку папка и её содержимое --- это разные файлы,
+            с разными путями и разными номерами inode.
+
+            Чтобы исправить это, предлагается для каждого доступа к файлу добавлять в лог событий дополнительное событие
+            \keyword{dir\_lookup} для родительской директории.
+
+            Теперь последовательность событий будет выглядеть так, и в ней можно найти гонку между созданием папки и
+            доступом к ней --- операцией \keyword{dir\_lookup}.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на каталог}
+        \begin{columns}[t]
+            \begin{column}{.4 \textwidth}
+                \textbf{Проблема:} В некоторых проектах каталог сборки создается в каждой цели отдельно с помощью
+                \texttt{mkdir -p}:
+                \lstinputlisting[
+                    basicstyle=\ttfamily,
+                    language=bash,
+                    morekeywords={all, library\_1, library\_9},
+                    escapechar=\%
+                ]{src/directory-race-5.make}
+            \end{column}
+            \begin{column}{.5 \textwidth}
+                \pause
+                \textbf{Следствие:} Записывается несколько событий \texttt{write} для одного и того же каталога.
+                Только первое успешно. Остальные завершаются с ошибкой \texttt{EEXIST}.
+
+                \vspace{1em}
+                \lstinputlisting[
+                    basicstyle=\small\ttfamily,
+                    language=bash,
+                    morekeywords={all, library\_1, library\_2, write, dir_lookup},
+                    escapechar=\%,
+                    numbers=none,
+                ]{src/strace-log-informative-5.txt}
+
+                \pause
+                \vspace{1em}
+                Алгоритм сообщит о ложной гонке для любой пары доступов
+                к каталогу \texttt{build} из разных целей \texttt{library\_n}. \textbf{Как избежать ложных положительных результатов?}
+            \end{column}
+        \end{columns}
+
+        \note {
+            Однако этого оказывается недостаточно. Дело в том, что в некоторых проектах директория сборки создаётся
+            в каждой цели отдельно, несмотря на то грамотнее было бы выделить её создание в отдельную цель.
+
+            В этом случае в логе событий будет несколько событий \keyword{write} для одной и той же директории.
+            При этом только первое создание будет успешным, остальные просто не смогут повторно создать уже существующую
+            папку.
+
+            В результате алгоритм обнаружения гонок будет сообщать о ложных гонках между любыми двумя целями, которые
+            обращаются к одной и той же директории сборки, хотя на самом деле это не гонка. Как избежать этих ложных
+            срабатываний?
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Теоретический метод: Гонка на каталог}
+        \textbf{Решение:} Создайте отдельный алгоритм для обнаружения состояний гонок с использованием \keyword{dir\_lookup}:
+
+        \begin{itemize}
+            \item Все попытки создать каталог сохраняются в наборе.
+            \item Состояние гонки сообщается, если событие \keyword{dir\_lookup} для этого каталога конфликтует со \textbf{всеми} попытками создания.
+        \end{itemize}
+
+        \begin{center}
+            \begin{tikzpicture}
+                % Common
+                \node[style=draw, rounded corners, minimum width=3cm] (lib1build) at (3.75,1.2) {mkdir -p build};
+                \node[style=draw, rounded corners, minimum width=3cm] (lib1) at (8.75,1.2) {use build/lib1.a};
+
+                \node at (3.75,0.6) {...};
+                \node at (7.75,0.6) {...};
+
+                \node[style=draw, rounded corners, minimum width=3cm] (lib9build) at (3.75,0) {mkdir -p build};
+                \node[style=draw, rounded corners, minimum width=3cm] (lib9) at (8.75,0) {use build/lib9.a};
+
+                \only<2> \node[gray, style=draw, rounded corners, dashed, minimum width=3] (lib9) at (8.75,0) {use build/lib9.a};
+
+                \only<2> \node[gray, style=draw, rounded corners, dashed, minimum width=3cm] (lib10build) at (3.75,-0.6) {no mkdir};
+                \only<2> \node[style=draw, rounded corners, minimum width=3cm] (lib10) at (8.75,-0.6) {use build/lib10.a};
+
+                \node[minimum width=13cm, minimum height=3.1cm] (sizer) at (5,-0.24) {};
+                \node at (0.2,1.2) {Thread 1: (library\_1)};
+                \node at (0.2,0.6) {...};
+                \node at (0.2,0) {Thread 9: (library\_9)};
+                \only<2> \node at (0.2,-0.6) {Thread 10: (library\_10)};
+
+                % Time text and arrow
+                \node[gray, font=\itshape] (time) at (4.7, -1.6) {time};
+                \draw[gray, line width=0.7pt, ->] (-1.8, -1.76) to (11.3, -1.76);
+
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (lib1build) -- (lib1);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (lib9build) -- (lib9);
+
+                \only<2> \draw[red, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (lib1build) to[out=0, in=180] (lib10);
+                \only<2> \draw[red, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (lib9build) to[out=0, in=180] (lib10);
+                \only<2> \node[red] (conflicts) at (6.4, -0.95) {conflicts};
+            \end{tikzpicture}
+        \end{center}
+        \pause
+        \begin{itemize}
+            \item Команда \texttt{mkdir build} не была выполнена для \texttt{library\_10}, поэтому любое использование директории \texttt{build} будет сообщать о гонке.
+        \end{itemize}
+
+        \note {
+            Решение заключается в использовании отдельного, третьего алгоритма для обнаружения гонок с участием \keyword{dir\_lookup}.
+
+            На схеме изображены потоки сборки, каждый из которых создает директорию \texttt{build} и затем создает в ней файл. Задача алгоритма - для каждого доступа к папке проверить, что перед ним папка точно была создана, то есть найти хотя бы один вызов \texttt{mkdir}, гарантированно выполненный раньше.
+
+            Если какой-то поток будет использовать папку без ее создания, то этот доступ будет конфликтовать со всеми \texttt{mkdir}, произошедшими в других потоках, поскольку мы не можем гарантировать, что хотя бы один из них точно произойдет раньше. В этом случае санитайзер сообщает о гонке.
+        }
+        \end{frame}
+
+        \section{Реализация}
+
+        \begin{frame}[label=current]{Реализация: Архитектура}
+        \begin{itemize}
+        \item Граф зависимостей, сопоставление процессов с целями: измененный Make.
+        \item Журнал событий: монитор на основе \texttt{ptrace} вместо парсинга журнала \texttt{strace}.
+        \item Компонент \texttt{ptrace} перемещен в отдельный процесс для изоляции процесса сборки от санитайзера.
+        \end{itemize}
+
+
+        \begin{center}
+            \begin{tikzpicture}
+                \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan) at (0, 0) {Санитайзер};
+                \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (tracer) at (3.2, -0.5) {Монитор \texttt{ptrace}};
+                \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {Измененный Make};
+                \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child1) at (11, 1) {gcc};
+                \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
+                \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child3) at (11, -1) {...};
+
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (parmasan) -- (tracer);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
+
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child1) to[in=300, out=210] (tracer);
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child2) to[in=300, out=205] (tracer);
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child3) to[in=300, out=200] (tracer);
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=300, out=250] (tracer);
+
+                \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (tracer) to[out=140, in=30] (parmasan);
+                \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (make) to[out=140, in=40] (parmasan);
+
+                \node[gray] (text1) at (6.7, -2.7) {события \texttt{ptrace}};
+                \node[gray] (text1) at (3.2, 0.6) {журнал событий};
+                \node[gray] (text2) at (4, 1.8) {сопоставление процесс-цель и граф зависимостей};
+            \end{tikzpicture}
+        \end{center}
+
+        \note {
+            \footnotesize {
+                Перед нами стояло несколько задач.
+
+                Для начала нам нужно получить граф зависимостей и сопоставить процессы с целями. Это те самые две проблемы, которые мы сформулировали раньше и оставили на потом. И они обе решаются простым патчем для Make.
+
+                Дальше нам нужно получить журнал событий. Это то, для чего мы использовали журнал strace, и как-то обрабатывали его, но мы решили не делать так, а использовать системный вызов ptrace напрямую: это проще и эффективнее.
+
+                Компонент с \texttt{ptrace} был вынесен в отдельный процесс, чтобы изолировать санитайзер от непосредственной работы с процессами сборки. Это позволило нам упростить архитектуру и сделать ее более гибкой.
+            }
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Реализация: Трейсинг системных вызовов}
+        Перехватываемые системные вызовы:
+
+        \begin{center}
+            \renewcommand{\arraystretch}{1.5}
+            \begin{tabular}{>{\raggedright\arraybackslash}m{3cm}>{\raggedright\arraybackslash}m{6cm}}
+                \toprule
+                \multicolumn{1}{c}{\textbf{системный вызов}} & \multicolumn{1}{c}{\textbf{событие для санитайзера}}                \\
+                \midrule
+                \texttt{open(at)(at2)}               & доступ на \keyword{чтение}, \keyword{запись} или \keyword{чтение-запись} \\
+                \texttt{mkdir(at)}                   & доступ на \keyword{запись} к созданному каталогу                 \\
+                \texttt{creat}                       & доступ на \keyword{запись}                                          \\
+                \texttt{rmdir}                       & доступ на \keyword{удаление}                                         \\
+                \texttt{unlink(at)}                  & доступ на \keyword{удаление}                                         \\
+                \texttt{rename(at)(at2)}             & \keyword{удаление} целевого пути, если он существует.                  \\
+                \bottomrule
+            \end{tabular}
+        \end{center}
+        \begin{itemize}
+            \item Каждый доступ сообщается с указанием \textbf{процесса}, номера \textbf{inode} и \textbf{пути к файлу}.
+            \item Генерируется также \keyword{dir\_lookup} для родительского каталога.
+            \item Нежелательные системные вызовы фильтруются с помощью \texttt{seccomp BPF}.
+        \end{itemize}
+
+        \note {
+            В этом слайде перечислены системные вызовы, которые перехватываются монитором \texttt{ptrace}, и
+            события для санитайзера, в которые они конвертируются. Все они относятся к файловой системе.
+
+            При каждом сисколле мы сообщаем санитайзеру о том, что был произведён доступ таким-то процессом
+            на файл по такому-то пути с таким-то номером inode.
+
+            Также для каждого доступа к файлу генерируется событие \keyword{dir\_lookup} для родительской директории.
+            (Это событие необходимо для обнаружения гонок третьей категории).
+
+            Для фильтрации ненужных системных вызовов ядра используется \textbf{Berkeley Packet Filter} (BPF).
+            Он позволяет эффективно фильтровать системные вызовы на уровне ядра, не уведомляя о них монитор \texttt{ptrace}.
+            Это существенно снижает накладные расходы на перехват системных вызовов и ускоряет работу санитайзера.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Реализация: Санитайзер}
+        Санитайзер получает все сообщения и обрабатывает их с помощью трех алгоритмов:
+
+        \begin{center}
+            \begin{tikzpicture}
+                \node[minimum width=3cm, minimum height=0.7cm, style=draw, rounded corners] (tracer) at (-0.5, 0) {монитор ptrace};
+                \node[minimum width=3cm, minimum height=0.7cm, style=draw, rounded corners] (make) at (-0.5, 1) {измененный Make};
+                \node[minimum width=3cm, minimum height=0.7cm, style=draw, rounded corners] (user) at (-0.5, 4) {пользователь};
+
+                \node[align=center, minimum width=2cm, text width=2cm, minimum height=2cm, style=draw, rounded corners] (inode) at (5, 2.5) {детектор гонок на основе inode};
+                \node[align=center, minimum width=2cm, text width=2cm, minimum height=2cm, style=draw, rounded corners] (path) at (7.5, 2.5) {детектор гонок на основе пути};
+                \node[align=center, minimum width=2cm, text width=2cm, minimum height=2cm, style=draw, rounded corners] (dir) at (10, 2.5) {детектор гонок \keyword{dir\_lookup}};
+
+                \node[align=center, rotate=270, text width=1.6cm, minimum height=1.2cm, minimum width=1.6cm, style=draw, rounded corners] (input) at (2.7, 0.5) {обработчик ввода};
+                \node[gray, minimum width=10cm, minimum height=5.5cm, style=draw, rounded corners] (sanitizer) at (6.5, 2) {};
+
+                \node (text1) at (3, 4.3) {обнаруженные гонки};
+                \node (text2) at (4.1, 0.2) {события};
+                \node[gray] (text3) at (10.5, -0.4) {Санитайзер};
+
+                % tracer -> input
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (1.0, 0) -- (2.1, 0);
+
+                % make -> input
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (1.0, 1) -- (2.1, 1);
+
+                % input -> horizontal line
+                \draw[line width=1pt, shorten <=2pt, -] (3.3, 0.5) -- (9.5, 0.5);
+
+                % horizontal line -> inode
+                \draw[line width=1pt, shorten >=2pt, ->] (4.5,0.5) arc (270:360:0.5) -- (5, 1.5);
+
+                % horizontal line -> inode
+                \draw[line width=1pt, shorten >=2pt, ->] (4.5,0.5) arc (270:360:0.5) -- (5, 1.5);
+
+                % horizontal line -> path
+                \draw[line width=1pt, shorten >=2pt, ->] (7,0.5) arc (270:360:0.5) -- (7.5, 1.5);
+
+                % horizontal line -> dir
+                \draw[line width=1pt, shorten >=2pt, ->] (9.5,0.5) arc (270:360:0.5) -- (10, 1.5);
+
+                % horizontal line -> user
+                \draw[line width=1pt, shorten <=2pt, <-] (1.0, 4) -- (9.5, 4);
+
+                % horizontal line -> inode
+                \draw[line width=1pt, shorten >=2pt, -] (4.5,4) arc (90:0:0.5);
+
+                % horizontal line -> inode
+                \draw[line width=1pt, shorten >=2pt, -] (4.5,4) arc (90:0:0.5);
+
+                % horizontal line -> path
+                \draw[line width=1pt, shorten >=2pt, -] (7,4) arc (90:0:0.5);
+
+                % horizontal line -> dir
+                \draw[line width=1pt, shorten >=2pt, -] (9.5,4) arc (90:0:0.5);
+
+            \end{tikzpicture}
+        \end{center}
+
+        \note {
+            Здесь изображено внутреннее устройство корневого процесса. Мы называем его санитайзером, хотя это лишь одно
+            звено во всём тулчейне. Его задача - превращать поток входных сообщений в поток обнаруженных гонок.
+
+            Устройство достаточно простое. Входные данные передаются трем алгоритмам, каждый из которых ищет гонки своего
+            типа. Затем все найденные гонки собираются вместе и передаются пользователю.
+
+            Здесь представлена несколько упрощенная схема. В реальном санитайзере пользователь может посылать санитайзеру
+            команды, как в \texttt{gdb}, ставить брейкпоинты на определенных событиях и просматривать
+            состояние гонки в "замороженном" состоянии - просматривать дерево процессов, информацию о мейкфайлах,
+            работающих в данный момент и так далее. То есть наш санитайзер можно использовать как своего рода отладчик.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Реализация: Воспроизведение сборки}
+        \begin{itemize}
+            \item Структура инструмента позволяет сохранять журнал сборки в файл и воспроизводить его после.
+            \visible<2> {\item Это позволяет быстро запускать санитайзер несколько раз с разными опциями или точками останова.}
+        \end{itemize}
+
+        \begin{center}
+            \begin{tikzpicture}
+
+                \only<1> \node[minimum width=2.35cm, minimum height=1cm, style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan) at (0, 0) {Санитайзер};
+                \only<2> \node[minimum width=2.35cm, fill=diffadd, minimum height=1cm, style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan) at (0, 0) {Журналирование};
+                \only<2> \node[style=draw, fill=diffadd, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan2) at (0, -3) {Санитайзер};
+                \only<2> \node[style=draw, fill=diffadd, rounded corners, inner xsep=10pt, inner ysep=6pt] (file) at (0, -1.5) {Файл воспроизведения};
+
+                \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (tracer) at (3.2, -0.5) {монитор ptrace};
+                \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {измененный Make};
+                \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child1) at (11, 1) {gcc};
+                \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
+                \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child3) at (11, -1) {...};
+
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (parmasan) -- (tracer);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
+
+                \only<2> \draw[line width=1pt, dashed, gray, shorten >=2pt, shorten <=2pt, ->] (parmasan) -- (file);
+                \only<2> \draw[line width=1pt, dashed, gray, shorten >=2pt, shorten <=2pt, ->] (file) -- (parmasan2);
+
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child1) to[in=300, out=210] (tracer);
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child2) to[in=300, out=205] (tracer);
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child3) to[in=300, out=200] (tracer);
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=300, out=250] (tracer);
+
+                \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (tracer) to[out=140, in=30] (parmasan);
+                \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (make) to[out=140, in=40] (parmasan);
+
+                \node[gray] (text1) at (6.7, -2.7) {события ptrace};
+                \node[gray] (text1) at (3.2, 0.6) {журнал событий};
+                \node[gray] (text2) at (4, 1.8) {сопоставление процессов-целей и граф зависимостей};
+
+            \end{tikzpicture}
+        \end{center}
+
+        \note {
+            Представим, что во время отладки гонки разработчик захотел установить точку останова на каком-то
+            доступе к файлу. Чтобы эта точка останова сработала, ему пришлось бы перезапустить сборку полностью,
+            а проект может быть очень большим и собираться долго. Мы хотим избежать этого.
+
+            Поскольку ранее мы позаботились о том, чтобы изолировать процесс от работы с процессами сборки, его можно
+            заменить на простой \textbf{журналирующий модуль}, который будет записывать все получаемые сообщения в файл.
+
+            Позже этот файл можно отправить на вход санитайзеру, и он будет работать с ним так же, как и с реальным
+            процессом сборки, только во много раз быстрее, поскольку сборка на самом деле не будет происходить.
+            Будет просто воспроизводиться её "воспроизведение". Это значительное преимущество нашего инструмента по сравнению
+            с \texttt{make --shuffle}, который каждый раз требует полной пересборки проекта.
+        }
+    \end{frame}
+
+    \section{Тестирование}
+
+    \begin{frame}[label=current]{Тестирование: Список проектов}
+        Сергей Трофимович с помощью \texttt{make --shuffle} обнаружил условия гонок в 29 проектах с открытым исходным кодом, включая:
+
+        \begin{enumerate}
+            \item Vim
+            \item GCC
+            \item strace
+            \item Ispell
+        \end{enumerate}
+
+        \url{https://trofi.github.io/posts/249-an-update-on-make-shuffle.html}
+
+        \note {
+            Для тестирования был использован список проектов, в которых были найдены гонки с помощью
+            \texttt{make --shuffle}.
+
+            Список проектов был повзаимствован с блога Сергея Трофимовича, который, кстати, является разработчиком этого
+            режима.
+
+            В этом списке было 29 проектов, включая даже такие большие проекты, как GCC и Vim. Мы запустили наш
+            санитайзер на каждом из них и проверили, что он находит те же гонки, что и \texttt{make --shuffle}.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Тестирование: Vim}
+        \begin{itemize}
+            \item Сообщаемая ошибка сборки Vim:
+            \lstinputlisting[
+                basicstyle=\small\ttfamily
+            ]{src/vim-race.txt}
+            \pause
+            \item \texttt{bin/vimtutor} кажется создается слишком поздно для цели \keyword{installtutorbin}.
+            \item Журнал событий:
+            \lstinputlisting[
+                language=bash,
+                alsoletter={/, _},
+                morekeywords={inst\_dir/bin, installtutorbin, write, dir\_lookup}]{src/vim-events.txt}
+            \pause
+            \item Цели \keyword{inst\_dir/bin} и \keyword{installtutorbin} являются \textbf{неупорядоченными}
+            \item Санитайзер сообщил об гонке:
+            \lstinputlisting[
+                language=bash,
+                alsoletter={/, _},
+                escapechar=\%,
+                numbers=none,
+                morekeywords={inst\_dir/bin, installtutorbin, write, dir\_lookup}]
+            {src/vim-reports.txt}
+        \end{itemize}
+
+        \note {
+            Рассмотрим подробно один из проектов - Vim. Если обратиться к тексту ошибки, то можно предположить,
+            что каталог \texttt{inst\_dir/bin} создается слишком поздно, и цель \texttt{installtutorbin} не может
+            обратиться к нему.
+
+            Санитайзер, в свою очередь, находит \textbf{цель}, которая создает папку \texttt{bin}, и определяет, что она никак
+            не зависит от другой цели, использующей эту папку. И как только это происходит, он сообщает, что
+            это --- действительно гонка.
+
+            Таким образом, мы автоматически нашли ту же гонку, которую прежде нашел живой человек, потратив свое время
+            и используя \texttt{make --shuffle}
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Тестирование: Другие гонки в Vim}
+        \begin{itemize}
+            \item Санитайзер также сообщил о ранее неизвестных гонках:
+
+            \lstinputlisting[
+                language=bash,
+                alsoletter={/, _, .},
+                escapechar=\%,
+                numbers=none,
+                morekeywords={gvim.desktop, vim.desktop, write, unlink}]{src/vim-new-race-report.txt}
+            \pause
+            \item Оказалось, что \texttt{LINGUAS} является временным файлом, используемым в двух независимых целях:
+            \lstinputlisting[
+                language=bash,
+                alsoletter={/, _, .},
+                escapechar=\%,
+                morekeywords={gvim.desktop, vim.desktop},
+                firstnumber=216]{src/vim-new-race.make}
+            \pause
+            \item Эта гонка не может быть обнаружена с помощью \texttt{make --shuffle}
+        \end{itemize}
+
+        \note {
+            Интересно, что это далеко не единственная гонка в проекте Vim, которую наш санитайзер нашел.
+
+            Он также нашел гонку второй категории, которая почти в точности повторяет наш пример с временным файлом.
+            Если обратиться к мейкфайлу, то можно увидеть, что файл \texttt{LINGUAS} используется в двух независимых
+            целях как временный файл.
+
+            Эта гонка могла бы привести к тому, что Vim собрался бы без ошибок, однако имел бы поврежденные файлы
+            локализации.
+
+            Стоит также сказать, что \texttt{make --shuffle} не помог бы в обнаружении этой гонки, поскольку она
+            проявляется не от изменения порядка выполнения целей, а наоборот - при их одновременном запуске.
+
+            Это является еще одним преимуществом нашего инструмента.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Тестирование: Результаты}
+        \tikz[remember picture, overlay] \node[anchor=center] at ($(current page.center)-(0.5,1.8)$) {
+            \includegraphics[width=1.2\textwidth]{races}
+        };
+        \note {
+            Вот результаты тестирования. Из всех 29 проектов санитайзер нашел референсные гонки в 23 из них.
+            Довольно часто он находил еще и дополнительные гонки, которые ранее не были известны.
+
+            В остальных пяти проектах ожидаемая гонка не была обнаружена. Это связано с разными причинами -
+            например, санитайзер пока не умеет находить гонку между созданием символической ссылки и доступом к ней.
+            Однако работы по улучшению санитайзера продолжаются, и в будущем мы надеемся найти все гонки из этого списка.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Тестирование: Выводы}
+        Новый инструмент продемонстрировал свою надежность и помог достичь цели исследования. Он был назван \textbf{parmasan} --- \textbf{Par}allel \textbf{ma}ke \textbf{san}itizer.
+        \vspace{2em}
+
+        \textbf{Дальнейшие улучшения:}
+        \begin{itemize}
+            \item Улучшение учета символических ссылок в алгоритме поиска гонок.
+            \item Интеграция инструмента в системы непрерывной интеграции (Tinderbox-cluster)
+            \item Добавление поддержки системы сборки \textbf{Ninja}.
+        \end{itemize}
+
+        \textbf{Репозитории:}
+        \begin{itemize}
+            \item \url{https://github.com/ispras/parmasan}
+            \item \url{https://github.com/ispras/parmasan-remake}
+        \end{itemize}
+
+        \note {
+            Пришло время подводить итоги. В этой работе мы исследовали проблему состояний гонок в мейкфайлах, и
+            разработали инструмент, который смог автоматически найти большинство уже известных гонок, а так же множество
+            новых, которые до текущего времени оставались незамеченными.
+
+            Наш инструмент получил название \textbf{parmasan} как акроним от \textbf{Par}allel \textbf{ma}ke \textbf{san}itizer.
+
+            В дальнейшем мы планируем улучшить санитайзер, добавив поддержку символических ссылок в алгоритм поиска гонок,
+            а также интегрировать его в системы непрерывной интеграции, такие как Tinderbox-cluster, и добавить
+            поддержку других систем сборки, таких как Ninja.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current,standout,plain]
+        \vfill Благодарю за внимание! \vfill
+    \end{frame}
+\end{document}
+
+% - project icons

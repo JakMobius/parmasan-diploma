@@ -1,0 +1,16 @@
+\PassOptionsToClass{handout}{beamer}
+\input{fmt.tex}
+
+\usepackage{pdfpages}
+
+\setbeameroption{show notes on second screen}
+
+% Customize the layout for handout mode
+\mode<handout>{
+%    \pgfpagesuselayout{2 on 1}[a4paper,border shrink=5mm]
+    \pgfpageslogicalpageoptions{1}{%
+        border code=\pgfpoint{10mm}{20mm},%
+    }
+}
+
+\input{parmasan.tex}

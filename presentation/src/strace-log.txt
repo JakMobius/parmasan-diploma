@@ -1,0 +1,10 @@
+$ strace -f -e trace=%file make
+...
+# echo 'a' > file.out:
+[pid  1060] openat(AT_FDCWD, "file.out", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3
+[pid  1060] +++ exited with 0 +++
+...
+# echo 'b' >> file.out:
+[pid  1061] openat(AT_FDCWD, "file.out", O_WRONLY|O_CREAT|O_APPEND, 0666) = 3
+[pid  1061] +++ exited with 0 +++
+...

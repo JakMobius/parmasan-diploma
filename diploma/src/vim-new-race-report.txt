@@ -1,0 +1,3 @@
+race found at file 'src/po/LINGUAS':
+ - unlink at target gvim.desktop
+ - write at target vim.desktop

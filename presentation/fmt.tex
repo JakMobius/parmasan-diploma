@@ -1,0 +1,98 @@
+\RequirePackage[l2tabu,orthodox]{nag}
+\documentclass[9pt,aspectratio=169]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T2A]{fontenc}
+\usepackage[russian]{babel}
+
+\usetheme[
+    sectionpage=simple,
+    numbering=fraction
+]{metropolis}
+\usepackage{appendixnumberbeamer}
+
+\usepackage{booktabs}
+
+\usepackage{xspace}
+\newcommand{\themename}{\textbf{\textsc{metropolis}}\xspace}
+\newcommand{\allgray}{
+    \color{gray}
+    \setbeamercolor{itemize/enumerate body}{fg=gray}
+    \setbeamercolor{itemize item}{fg=gray}
+}
+
+\newcommand{\allblack}{
+    \color{black}
+    \setbeamercolor{itemize/enumerate body}{fg=black}
+    \setbeamercolor{itemize item}{fg=black}
+}
+
+\newcommand{\conditionalText}[3]{
+    \ifnum#1=#2
+    #3
+    \else
+    \phantom{#3}
+    \fi
+}
+
+\newcommand{\keyword}[1]{\textcolor{ultramarine}{\texttt{\textbf{#1}}}}
+
+\setbeamertemplate{caption}{\raggedright\insertcaption\par}
+
+\setbeamertemplate{section in toc}{%
+    \alert{$\bullet$}~\inserttocsection}
+\setbeamercolor{subsection in toc}{bg=white,fg=structure}
+\setbeamertemplate{subsection in toc}{%
+    \hspace{1.2em}{\alert{\rule[0.3ex]{3pt}{3pt}}~\inserttocsubsection\par}}
+
+\usepackage{hyperref}
+\hypersetup{unicode=true}
+
+\protected\def\psverb#1{\def\innerpsverb##1#1{\texttt{##1}}\innerpsverb}
+\usepackage{fancyvrb}
+
+\usepackage{listings}
+
+\usepackage{float}
+
+\usepackage{changepage}
+
+\usepackage{dejavu}
+\usepackage{Hack}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage{tabu}
+\usepackage{tabularray,varwidth,enumitem}
+\usepackage{ulem}
+\UseTblrLibrary{varwidth}
+\usetikzlibrary{graphs}
+\usetikzlibrary{calc}
+
+\renewcommand{\ULthickness}{1pt}
+
+\setlist[itemize]{label=\textbullet}
+%% https://tex.stackexchange.com/questions/24371/does-enumitem-conflict-with-beamer-for-lists
+\setlist[enumerate]{label=\arabic*.}
+
+
+\definecolor{Blue}{HTML}{055aaa}
+\definecolor{ultramarine}{RGB}{0,32,96}
+\definecolor{mygreen}{RGB}{62,118,79}
+\definecolor{mymauve}{RGB}{102,0,102}
+\setbeamercolor{frametitle}{bg=Blue}
+\setbeamercolor{palette primary}{bg=Blue}
+\definecolor{diffadd}{HTML}{a3f5b6}
+\definecolor{diffrem}{HTML}{f3bec5}
+\def\T{\texttt}
+
+\lstset{
+    basicstyle=\ttfamily,
+    keywords={setjmp},
+    keywordstyle=\color{ultramarine}\bfseries,
+    commentstyle=\color{mygreen}\textit,
+    stringstyle=\color{mymauve},
+    captionpos=b,
+    numbers=left,
+    numberstyle=\tiny}
+
+\csname endofdump\endcsname

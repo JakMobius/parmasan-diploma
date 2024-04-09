@@ -1,0 +1,50 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{Hack}
+    [2022/02/01 (autoinst)  Style file for Hack fonts.]
+
+\RequirePackage{xkeyval}
+\newcommand*{\Hack@scale}{1}
+\DeclareOptionX{scale}{\renewcommand*{\Hack@scale}{#1}}
+\DeclareOptionX{scaled}{\renewcommand*{\Hack@scale}{#1}}
+
+\DeclareOptionX{lining}{\edef\Hack@figurestyle{LF}}
+\DeclareOptionX{tabular}{\edef\Hack@figurealign{T}}
+\DeclareOptionX{mainfont}{
+    \renewcommand{\familydefault}{\ttdefault}
+}
+\DeclareOptionX{bold}{\edef\bfseries@tt{bold}}
+\DeclareOptionX{regular}{\edef\mdseries@tt{regular}}
+\ExecuteOptionsX{lining,tabular}
+\ProcessOptionsX\relax
+
+\RequirePackage{fontenc,textcomp}
+\RequirePackage{ifthen}
+\RequirePackage{mweights}
+
+\IfFileExists{fontaxes.sty}{
+    \RequirePackage{fontaxes}
+}{}
+
+%   Here we implement the scale=MatchLowercase option.
+%   If this is given, we must compute the correct value of
+%   the "\Hack@scale" parameter before loading the .fd files;
+%   but to determine that value we of course need the font's x-height.
+%   To avoid triggering the loading of .fd files,
+%   we use plain TeX's \font primitive to load the testfont.
+%   We then compute the ratio of the current x-height to our font's x-height;
+%   this is the "\Hack@scale" we will pass to the .fd files.
+\ifthenelse{\equal{\Hack@scale}{MatchLowercase}}
+    {   \newlength{\Hack@currentx}
+        \settoheight{\Hack@currentx}{x}
+        \newlength{\Hack@xheight}
+        \settoheight{\Hack@xheight}
+            {{\font\testfont=Hack-Regular-tlf-t1 at \f@size pt\testfont x}}
+        \renewcommand*{\Hack@scale}
+            {\strip@pt\dimexpr\number\numexpr\number\dimexpr\Hack@currentx\relax*65536/\number\dimexpr\Hack@xheight\relax\relax sp\relax}}
+    {}
+
+\renewcommand*
+    {\ttdefault}
+    {Hack-\Hack@figurealign\Hack@figurestyle}
+
+\endinput

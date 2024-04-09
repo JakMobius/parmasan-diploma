@@ -1,0 +1,599 @@
+\section{Исследование и построение решения задачи}
+\label{sec:Chapter3} \index{Chapter3}
+
+% Требуется разбить большую задачу, описанную в постановке, на более мелкие
+% подзадачи. Процесс декомпозиции следует продолжать до тех пор, пока подзадачи
+% не станут достаточно простыми для решения непосредственно. Это может быть
+% достигнуто, например, путем проведения эксперимента, доказательства теоремы
+% или поиска готового решения.
+
+Самые распространённые гонки, встречающиеся в реальных проектах, можно разделить на три категории. Далее, по ходу их рассмотрения, будут предложены алгоритмы для их автоматического обнаружения.
+
+\subsection{Гонка на содержимом файла}
+\label{subsec:file-content-races}
+
+\lstinputlisting[
+	caption={Пример Makefile с гонкой на содержимом объектных файлов},
+    language=bash,
+    label=lst:race-condition-1,
+    escapechar=\%,
+    morekeywords={all, write_a, append_b}
+]{src/file-content-race-1.make}
+
+В этом примере между целями \texttt{compile} и \texttt{link} не хватает зависимости. Аналогично примеру из вступления, при многопоточной сборке цель \texttt{link} может попытаться скомпоновать объектные файлы, которых ещё не существует, или использовать старый, ещё не обновленный объектный файл.
+
+Основная идея автоматического обнаружения гонок заключается в отслеживании операций с файлами и сопоставление их с графом зависимостей системы сборки. Самый простой способ увидеть, как процесс работает с файлами --- запустить его под утилитой strace.
+
+\lstinputlisting[
+	caption={Фрагмент лога strace при сборке Makefile из листинга \ref{lst:race-condition-1}},
+]{src/strace-log.txt}
+
+В фрагменте полученного лога можно видеть, как процесcы 1017, 1020 и 1025 открывают одни и те же объектные файлы с помощью системного вызова \texttt{openat}, причём первые два --- на запись, а последний --- на чтение. Однако этой информации мало: из лога нельзя понять, какие цели сборки скрываются за этими номерами.
+
+\subsubsection{Сопоставление операций над файлами с целями сборки}
+\label{subsec:link-ops-with-targets}
+
+Чтобы сопоставить номера процессов с целями сборки предлагается модифицировать саму утилиту Make. В качестве подопытного был взят проект remake. Он реализует тот же функционал, что и GNU Make, но требует значительно меньше усилий для сборки из исходного кода. После внесения изменений (см. приложение \ref{subsec:remake-patch}) в логе сборки появятся строки с информацией о том, какие процессы порождаются Make, и каким целям они соответствуют.
+
+\lstinputlisting[
+    label=lst:log-detailed,
+	caption={Фрагмент лога сборки Makefile из листинга \ref{lst:race-condition-1} с модифицированным remake},
+    language=bash,
+    morekeywords={all, write_a, append_b}
+]{src/strace-log-with-make-patch.txt}
+
+Можно заметить, что ни один процесс \texttt{gcc}, запускается Make, не работает с файлами проекта напрямую. GCC --- не компилятор, а драйвер, который запускает нужные компиляторы и компоновщики. Создание \texttt{main.o} и \texttt{lib.o} ведётся дочерними процессами \texttt{gcc}. В нашем случае это процессы \texttt{as}, порождённые системным вызовом \texttt{vfork}. Они генерируют объектные файлы на основе ассемблера, в который компилируется Си с помощью \texttt{cc1} - другого дочернего процесса \texttt{gcc}.
+
+\begin{figure}[H]
+	\centering
+	\begin{tikzpicture}
+        \node[style=draw, minimum width=4cm] (compile) at (0,2.25) {Цель \texttt{compile}};
+        \node[style=draw, minimum width=4cm] (link) at (0,0) {Цель \texttt{link}};
+
+        \node[style=draw] (gcc3) at (5.5,0) {\parbox{4.5cm}{\centering \texttt{gcc main.o lib.o} \\ \footnotesize pid=1023}};
+        \node[style=draw] (gcc1) at (5.5,3) {\parbox{4.5cm}{\centering \texttt{gcc main.cpp} \\ \footnotesize pid=1015}};
+        \node[style=draw] (gcc2) at (5.5,1.5) {\parbox{4.5cm}{\centering \texttt{gcc lib.cpp} \\ \footnotesize pid=1018}};
+
+        \node[style=draw] (ld) at (11,0) {\parbox{2.5cm}{\centering \texttt{ld} \\ \footnotesize pid=1025}};
+        \node[style=draw] (as1) at (11,3) {\parbox{2.5cm}{\centering \texttt{as} \\ \footnotesize pid=1017}};
+        \node[style=draw] (as2) at (11,1.5) {\parbox{2.5cm}{\centering \texttt{as} \\ \footnotesize pid=1020}};
+
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (compile) -- (gcc1);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (compile) -- (gcc2);
+
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc1) -- (as1) node[midway, above] {vfork};
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc2) -- (as2) node[midway, above] {vfork};
+
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (link) -- (gcc3);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc3) -- (ld) node[midway, above] {vfork};
+    \end{tikzpicture}
+    \caption{Дерево процессов при сборке Makefile из листинга \ref{lst:race-condition-1}}
+    \label{fig:pstree1}
+\end{figure}
+
+Схему выше (кроме названий процессов) можно построить на данных из листинга \ref{lst:log-detailed}. В ней, как и в фрагменте лога, опущены процессы \texttt{cc1}, поскольку они не производят доступов к интересующим нас объектным файлам.
+
+Рассмотрим процессы 1020 и 1025. Согласно схеме \ref{fig:pstree1}, им соответствуют цели \texttt{compile} и \texttt{link}. Из фрагмента лога в листинге \ref{lst:log-detailed} можно установить, что процесс 1020 производит запись в файл \texttt{lib.o}, а процесс 1025 - чтение того же файла. Запись --- критическая операция, результат чтения может поменяться если поменять порядок этих операций. Следовательно, процессы 1020 и 1025 должны запускаться строго друг за другом. Иными словами, между соответствующими целями --- \texttt{compile} и \texttt{link} должна быть зависимость. Проверим это, обратившись к графу зависимостей схемы.
+
+\begin{figure}[H]
+	\centering
+	\begin{tikzpicture}[every node/.style = draw]
+        \node[inner xsep=7pt] (link) at (0,0) {link};
+        \node[inner xsep=7pt] (compile) at (0,1.2) {compile};
+        \node[inner xsep=7pt] (all) at (3,0.6) {all};
+
+
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, <->] (link) -- (compile);
+        \draw[line width=1pt, -] (-0.2,0.5) -- (0.2,0.7);
+        \draw[line width=1pt, -] (0.2,0.5) -- (-0.2,0.7);
+
+        \graph {
+            (link) ->[line width=1pt, shorten >=2pt, shorten <=2pt] (all);
+            (compile) ->[line width=1pt, shorten >=2pt, shorten <=2pt] (all);
+        };
+    \end{tikzpicture}
+    \caption{Граф зависимостей Makefile из листинга \ref{lst:race-condition-1}}
+\end{figure}
+
+Легко убедиться в том, что схема сборки из примера не содержит такой зависимости: между целями \texttt{link} и \texttt{compile} нет ориентированного пути. Соответственно, в схеме сборки присутствует гонка. Теперь можно составить первый вариант алгоритма автоматического поиска состояний подобных гонок:
+
+\begin{enumerate}
+	\item Произвести сборку с использованием strace и модифицированного remake;
+	\item Получить соответствие между pid и целями сборки;
+	\item Получить список доступов к файлам для каждой известной цели;
+	\item Найти конфликтующие доступы к одному и тому же пути из разных целей;
+	\item Убедиться в том, что в схеме сборки существуют зависимости между целями, производящими конфликтующие доступы;
+\end{enumerate}
+
+В силу простоты примера конфликтующие доступы было найти достаточно легко. Однако общем случае выявление конфликтующих доступов --- не такая тривиальная задача. Более подробно она будет рассмотрена в подглаве \ref{subsec:cricital-accesses}.
+
+\subsubsection{Мотивация использования номеров inode}
+\label{subsubsec:why-inodes}
+
+В таком виде у алгоритма есть одно ограничение. Если цели \texttt{compile} и \texttt{link} будут использовать жёсткие ссылки на объектные файлы (например, \texttt{main.o.0} и \texttt{main.o.1}), гонка останется, но в логе доступов будут фигурировать пути от разных жёстких ссылок. Алгоритм выше не обнаружит такую гонку, поскольку полагается на совпадение путей как строк. Вместо этого нужно использовать какой-то другой способ сравнения, который бы учитывал жесткие ссылки.
+
+В системе Linux у каждого файла или директории существует ассоцированная с ним index node (inode). Получить её номер можно из поля \texttt{st\_ino} структуры \texttt{stat}. Согласно стандарту ядра, жесткие ссылки внутри одной файловой системы ссылаются на одну и ту же inode \cite{inode-docs}. Если речь идёт о нескольких файловых системах, то потребуется обратить внимание ещё и на device number (поле \texttt{st\_dev} из той же структуры \texttt{stat}). В разработанном инструменте это учтено, однако для простоты далее в этой работе device number будет опускаться.
+
+Номера inode могут быть переиспользованы системой, когда все жесткие ссылки на файл оказываются удалены. Это может привести к тому, что разные файлы будут отражены в логе одними и теми же номерами inode, в результате чего алгоритм выдаст ложные срабатывания. Если добавить в лог события освобождения inode, скрипт для поиска гонок сможет отличать их поколения, и не выдавать ложных срабатываний при переиспользовании inode.
+
+Прежде наш алгоритм полагался на парсинг лога strace. К сожалению, эта утилита не позволяет производить такие сложные проверки. Для этой цели лучше подходит \texttt{ptrace} --- системный вызов для трассировки процессов, на основе которого реализован отладчик GDB, а так же сам strace. \texttt{ptrace} позволяет перехватывать управление процессом перед любыми системными вызовами, которые он совершает. Собственный трассировщик на основе \texttt{ptrace} позволит производить более сложные проверки и составлять более информативные логи, чем \texttt{strace}.
+
+Перехватив управление процессом перед удалением файла или директории (системные вызовы \texttt{unlink(at)} или \texttt{rmdir}), трассировщик может проверить, что оно приведёт к освобождению номера inode. Linux указывает количество жестких ссылок на файл в поле \texttt{st\_nlink} структуры \texttt{stat}. Перед удалением последней жёсткой ссылки (и, соответственно, перед освобождением номера inode) \texttt{st\_nlink} равняется 1 для файлов и 2 для директорий (каждая директория содержит <<\texttt{.}>> --- жесткую ссылку на себя). Произведя такую проверку, трассировщик сможет вывести в лог событие освобождения номера inode.
+
+Таким образом, после всех исправлений, алгоритм приобретает следующий вид:
+
+\begin{enumerate}
+	\item Произвести сборку с использованием модифицированного remake и трассировщика на Си, использующего \texttt{ptrace};
+	\item Получить соответствие между pid и целями сборки;
+	\item Получить список доступов к inode для каждой известной цели;
+	\item Найти конфликтующие доступы к одному и тому же поколению inode из разных целей;
+	\item Убедиться в том, что в схеме сборки существуют зависимости между целями, производящими конфликтующие доступы к одному и тому же поколению inode;
+\end{enumerate}
+
+\subsection{Гонка на пути к файлу}
+\label{subsec:path-race}
+
+\lstinputlisting[
+	caption={Пример Makefile с гонкой на пути к файлу},
+    label=lst:race2,
+	language=bash,
+]{src/file-path-race-3.make}
+
+В предыдущей главе мы строили алгоритм для ситуации, в которой гонка происходит на содержимом одного и того же файла. Здесь же речь пойдёт о разных файлах, которые были доступны по одному и тому же пути в разные моменты времени. В листинге \ref{lst:race2} представлен распространённый сценарий гонки: независимые цели \texttt{something} и \texttt{something\_else} выбрали одно и то же имя для своих временных файлов. Если бы сборка этих целей была запущена параллельно, то мог бы возникнуть конфликт.
+
+Значительная часть предыдущей главы была уделена борбье с жесткими ссылками. Это связано с тем, что файл может иметь несколько абсолютных путей. Для директорий это неверно, поскольку целью жестких ссылок могут быть только файлы (за исключением <<.>> и <<..>>, которые не используются в абсолютных путях). Следовательно, для директорий корректно использовать их абсолютные пути в качестве уникального идентификатора. Стоит оговориться, что для этого нужно использовать разрешённый путь, то есть не содержащий переходов по символическим ссылкам. Далее под путями будут подразумеваться абсолютные разрешенные пути.
+
+Пусть в директории по пути $d$ существует сущность (directory entry) с именем $n$. Directory entry может быть папкой или жёсткой ссылкой на inode (на файл). Поскольку путь к директории уникален, получить доступ к этой directory entry можно только через путь $d$/$n$. Не может быть такого, что файл был удалён по пути $d_1$/$n$, и перестал быть доступен по пути $d_2$/$n$, где $d_1 \ne d_2$. Таким образом, путь является уникальным идентификатором не только директорий, но и любой directory entry.
+
+Поскольку гонка из примера связана с пересозданием directory entry по какому-либо пути, для её обнаружения достаточно проверять, что между целями, которые производят удаление (\texttt{unlink}) и повторное создание (\texttt{write}) этой directory entry, существует зависимость.
+
+Операция удаления может образовать гонку не только с записью, но и с чтением, если оно произошло первым и использовало тот же путь что и операция удаления. Такие гонки тоже можно отнести к этой категории. Никакие другие типы гонок не связаны с операцией удаления, поэтому разделение на категории останется корректным.
+
+\subsection{Гонка между созданием директории и файла внутри неё}
+\label{subsec:dir-race}
+
+\lstinputlisting[
+	caption={Пример Makefile с гонкой третьей категории},
+	label=lst:race3,
+    language=bash,
+]{src/directory-race-4.make}
+
+В листинге \ref{lst:race3} цели \texttt{build} и \texttt{build/a.out} не зависят друг от друга. Если цель \texttt{build/a.out} начнёт собираться раньше, она не сможет создать файл в директории, которой ещё не существует. Такая гонка была обнаружена в проекте GPM с помощью \texttt{make {-}{-}shuffle} \cite{race-3-example}. Предыдущие алгоритмы не помогут в поиске таких гонок.
+
+Директория и файл внутри неё --- разные элементы файловой системы, имеющие разные пути и разные номера inode, поэтому предыдущие алгоритмы не смогут обнаружить эту гонку. Простое решение --- фиксировать доступ специального вида (directory lookup) к родительской папке при любом обращении к лежащему в ней файлу.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture};
+        \node at (3.5,4) {Процессы:};
+        \node at (12,4) {Файловая система:};
+
+        \node[style=draw, minimum width=5cm, minimum height=0.9cm] (mkdir) at (3.5,3) {\texttt{mkdir build}};
+        \node[style=draw, minimum width=5cm, minimum height=1.9cm] (echo) at (3.5,1.5) {\texttt{echo > build/a.out}};
+
+        \node[align=left, text width=3cm] (build) at (12.5,3) {\texttt{./build}};
+        \node[align=left, text width=3cm] (buildaout) at (12.5,1) {\texttt{./build/a.out}};
+
+        \draw[->, shorten >=4pt, shorten <=4pt] (6,3) -- (11,3);
+        \draw[-, shorten <=4pt] (6,2) -- (9,2);
+        \draw[->, shorten >=4pt] (9,2) to[in=180, out=0] (11,3);
+        \draw[->, shorten >=4pt, shorten <=4pt] (6,1) -- (11,1);
+
+        \node at (7.7, 3.3) {\texttt{write}};
+        \node at (7.7, 2.3) {\texttt{dir\_lookup}};
+        \node at (7.7, 1.3) {\texttt{write}};
+
+        \node[gray, font=\itshape] (time) at (0.5, 0.5) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (0.5, 4) to (0.5, 1);
+    \end{tikzpicture}
+    \caption{Операции над файлами при сборке Makefile из листинга \ref{lst:race3}}
+    \label{fig:dirlookup-demo}
+\end{figure}
+
+Операция \texttt{dir\_lookup} позволила связать процесс \texttt{echo} из цели \texttt{build/a.out} с процессом \texttt{mkdir} из цели \texttt{build}. Поскольку теперь они производят чтение и запись на одной и той же директории, алгоритм поиска гонок из первой главы проверит наличие зависимости между их целями. Несмотря на то, что доступ \texttt{dir\_lookup} фиксируется только к ближайшему родительскому каталогу, этот принцип применим и для большего числа вложенных директорий.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture};
+        \node at (3,6) {Процессы:};
+        \node at (12,6) {Файловая система:};
+
+        \node[style=draw, minimum width=6cm, minimum height=0.9cm] (mkdir) at (3,5) {\texttt{mkdir build}};
+        \node[style=draw, minimum width=6cm, minimum height=1.9cm] (mkdir) at (3,3.5) {\texttt{mkdir build/foo}};
+        \node[style=draw, minimum width=6cm, minimum height=1.9cm] (echo) at (3,1.5) {\texttt{echo > build/foo/a.out}};
+
+        \node[align=left, text width=3cm] (build) at (12.5,5) {\texttt{./build}};
+        \node[align=left, text width=3cm] (buildfoo) at (12.5,3) {\texttt{./build/foo}};
+        \node[align=left, text width=3cm] (buildfooaout) at (12.5,1) {\texttt{./build/foo/a.out}};
+
+        \draw[->, shorten >=4pt, shorten <=4pt] (6,3) -- (11,3);
+        \draw[-, shorten <=4pt] (6,2) -- (9,2);
+        \draw[->, shorten >=4pt] (9,2) to[in=180, out=0] (11,3);
+        \draw[->, shorten >=4pt, shorten <=4pt] (6,1) -- (11,1);
+
+        \draw[->, shorten >=4pt, shorten <=4pt] (6,5) -- (11,5);
+        \draw[-, shorten <=4pt] (6,4) -- (9,4);
+        \draw[->, shorten >=4pt] (9,4) to[in=180, out=0] (11,5);
+
+        \node at (7.7, 5.3) {\texttt{write}};
+        \node at (7.7, 4.3) {\texttt{dir\_lookup}};
+        \node at (7.7, 3.3) {\texttt{write}};
+        \node at (7.7, 2.3) {\texttt{dir\_lookup}};
+        \node at (7.7, 1.3) {\texttt{write}};
+
+        \node[gray, font=\itshape] (time) at (-0.5, 0.5) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (-0.5, 6) to (-0.5, 1);
+    \end{tikzpicture}
+    \caption{Операции над файлами для большего числа вложенных директорий}
+    \label{fig:dirlookup-demo-deep}
+\end{figure}
+
+При создании множественных вложенных директорий, доступ \texttt{dir\_lookup} связывает между собой все <<соседние>> процессы. Если окажется, что все процессы, которые создают цепочку вложенных директорий, связаны соотвествующей цепочкой зависимостей, то гонки будут исключены. Верно и обратное: если, например, \texttt{mkdir build} и \texttt{mkdir build/foo} не связаны зависимостью (цепочка зависимостей разорвана), то присутствует гонка --- вторая цель может исполниться раньше первой, что приведёт к ошибке.
+
+\subsubsection{Обработка множественных попыток создания директории}
+
+На практике представленный алгоритм часто выдаёт ложные срабатывания. Проблема в том, что хоть две записи в файл и являются критическими операциями (поскольку влияют на содержимое файла) и требуют наличия зависимости, две попытки создания одной и той же директории могут быть безопасно переставлены местами. Результат не поменяется --- директория всё равно будет создана в тот же момент времени.
+
+\lstinputlisting[
+    caption={Пример Makefile с созданием директории build из нескольких целей},
+    label=lst:race3-complex,
+    language=bash,
+]{src/directory-race-5.make}
+
+В Makefile, изображённом на листинге \ref{lst:race3-complex}, несколько целей самостоятельно создают папку \texttt{build}, а затем используют её для сборки. Предложенный выше алгоритм выдаст ложные срабатывания, зафиксировав первую цель \texttt{libN}, которая первая создала директорию \texttt{build}, и ошибочно потребовав от всех остальных целей \texttt{lib(M $\ne$ N)} иметь зависимость с \texttt{libN}.
+
+В исправленной версии алгоритма операция \texttt{dir\_access} должна требовать наличие зависимости не с единственным успешным созданием директории, а хотя бы с одной, любой попыткой это сделать. Для этого нужно также модифицировать трассировщик системных вызовов: он должен сообщать о тех \texttt{mkdir}, которые завершились с \texttt{EEXIST}. Если для наглядности добавить в схему из листинга \ref{lst:race3-complex} десятую библиотеку, которая не делает \texttt{mkdir -p build}, новый алгоритм найдёт её и корректно сообщит о гонке.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        % Common
+        \node[style=draw, rounded corners, minimum width=3cm] (lib1build) at (3.75,2) {\texttt{mkdir(build)}};
+        \node[style=draw, rounded corners, minimum width=3cm] (lib1) at (8.75,2) {\texttt{dir\_access(build)}};
+
+        \node at (3.75,1) {...};
+        \node at (7.75,1) {...};
+
+        \node[style=draw, rounded corners, minimum width=3cm] (lib9build) at (3.75,0) {\texttt{mkdir(build)}};
+        \node[style=draw, rounded corners, minimum width=3cm] (lib9) at (8.75,0) {\texttt{dir\_access(build)}};
+
+        \node at (0.5,2) {\textbf{lib1}};
+        \node at (0.5,1) {...};
+        \node at (0.5,0) {\textbf{lib9}};
+
+        % Time text and arrow
+        \node[gray, font=\itshape] (time) at (10.5, -2.2) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (-1, -2.2) to (10, -2.2);
+
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (lib1build) -- (lib1);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (lib9build) -- (lib9);
+        \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib1build.south east) -- (lib9.north west);
+        \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib9build.north east) -- (lib1.south west);
+
+        \node[style=draw, rounded corners, minimum width=3cm] (lib10) at (8.75,-1) {\texttt{dir\_access(build)}};
+        \node at (0.5,-1) {\textbf{lib10}};
+        \node[gray, style=draw, rounded corners, dashed, minimum width=3cm] (lib10build) at (3.75,-1) {no \texttt{mkdir}};
+        \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib1build) to[out=0, in=180] (lib10);
+        \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib9build) to[out=0, in=180] (lib10);
+    \end{tikzpicture}
+    \caption{Обнаружение гонок на основе попыток создания директории}
+\end{figure}
+
+\subsection{Поиск конфликтующих доступов}
+\label{subsec:cricital-accesses}
+
+Базовый алгоритм поиска гонок, сформулированный в главе \ref{subsec:file-content-races}, содержит пункт <<Найти конфликтующие доступы к одному и тому же пути (поколению inode) из разных целей>>. В этой части работы будет подробно рассмотрена задача поиска таких доступов.
+
+Определим, какие виды доступов требуется поддерживать, чтобы обнаруживать все представленные ранее виды гонок.
+
+\begin{itemize}
+    \item \texttt{read(path, inode)} --- Чтение файла на заданном пути с заданным номером inode
+    \item \texttt{write(path, inode)} --- Запись файла / создание директории на заданном пути с заданным номером inode.
+    \item \texttt{unlink\_path(path)} --- Удаление указанного пути из файловой системы
+    \item \texttt{release\_inode(inode)} --- Освобождение номера inode (см. \ref{subsubsec:why-inodes})
+    \item \texttt{dir\_access(path)} --- Доступ к директории перед обращением к файлу в ней (см. \ref{subsec:dir-race})
+\end{itemize}
+
+Рассмотрим гонки на содержимом файла (см. \ref{subsec:file-content-races}). Для их поиска требуются только номера inode. Соответственно, актуальными для них могут являться только доступы \texttt{read}, \texttt{write} и \texttt{release\_inode}. Последний вид доступа --- удаление всех жестких ссылок на номер inode. Гонки, вовлекающие операцию удаления, относятся к следующей категории, поэтому в рамках этого пункта будут рассмотрены только операции \texttt{read} и \texttt{write}.
+
+Для любых двух соседних операций на одном и том же номере inode можно легко сказать, являются ли они конфликтующими. Например, для пары операций чтения это неверно: результат будет одним и тем же вне зависимости от порядка. Чтение и запись могут образовать конфликт, поскольку от порядка будет зависеть результат чтения. Рассуждая аналогично, можно построить целую таблицу:
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{cccc}
+        \toprule
+        & \texttt{read} & \texttt{write} \\
+        \midrule
+        \texttt{read} & - & +\\
+        \texttt{write} & + & +\\
+        \bottomrule
+    \end{tabular}
+    \caption{Таблица конфликтов между операциями для гонок типа \ref{subsec:file-content-races}}
+    \label{fig:conflict-table}
+\end{table}
+
+Для работы с любым числом доступов рассуждения требуется обобщить. Один из простых способов --- применить таблицу \ref{fig:conflict-table} ко всем соседним доступам на один и тот же номер inode. Однако такое обобщение не является корректным. На схеме \ref{fig:naive-conflict-break} представлен простой контрпример.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (0, -0.25) {write};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (3, -0.25) {read};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (6, -0.25) {read};
+
+        \node[font=\scriptsize] at (1.5, -1.4) {Конфликтуют};
+        \node[font=\scriptsize] at (4.5, -1.4) {Не конфликтуют};
+
+        \draw (0.9,-0.75) -- (0.9,-1);
+        \draw (0.9,-1) -- (2.1,-1);
+        \draw (2.1,-1) -- (2.1,-0.75);
+
+        \draw (3.9,-0.75) -- (3.9,-1);
+        \draw[dashed] (3.9,-1) -- (5.1,-1);
+        \draw (5.1,-1) -- (5.1,-0.75);
+
+        \node[gray, font=\itshape] (time) at (8.3, -1.5) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (7, -1.5) to (8, -1.5);
+    \end{tikzpicture}
+    \caption{Контрпример для наивного алгоритма}
+    \label{fig:naive-conflict-break}
+\end{figure}
+
+Такой алгоритм сочтёт конфликтующими только первую запись и первое чтение, несмотря на то, что второе чтение тоже обязано произойти строго позже записи в файл. Следовательно, проверять только соседние доступы недостаточно.
+
+Другой простой способ обобщить рассуждения для любого числа доступов --- применять таблицу ко всем возможным парам доступов. Несмотря на то, что такое решение корректно сработает на примере выше, проверять все пары доступов требует квадратичного времени.
+
+\subsubsection{Улучшенный алгоритм перебора доступов}
+\label{subsubsec:linear-time-proof}
+
+Отношение зависимости целей ($\rightarrow$) является транзитивным. Если цели $A$, $B$ и $C$ такие, что $A \rightarrow B$ и $B \rightarrow C$, то верно, что $A \rightarrow C$. Это рассуждение позволяет свести квадратичный перебор к линейному.
+
+На схеме \ref{fig:all-conflicts} изображена некоторая последовательность доступов к файлу. Стрелками связаны те доступы, для которых в таблице \ref{fig:conflict-table} указан конфликт:
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (0, -0.25) {write};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (3, -0.25) {read};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (6, -0.25) {read};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (9, -0.25) {write};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (12, -0.25) {read};
+
+        % 0-1
+        \draw (0.9,-0.75) -- (0.9,-1);
+        \draw (0.9,-1) -- (2.1,-1);
+        \draw[->, shorten >=1pt] (2.1,-1) -- (2.1,-0.75);
+
+        % 2-3
+        \draw (6.9,-0.75) -- (6.9,-1);
+        \draw (6.9,-1) -- (8.1,-1);
+        \draw[->, shorten >=1pt] (8.1,-1) -- (8.1,-0.75);
+
+        % 4-5
+        \draw (9.9,-0.75) -- (9.9,-1);
+        \draw (9.9,-1) -- (11.1,-1);
+        \draw[->, shorten >=1pt] (11.1,-1) -- (11.1,-0.75);
+
+        % 0-2
+        \draw (0.8,-0.75) -- (0.8,-1.1);
+        \draw (0.8,-1.1) -- (5.1,-1.1);
+        \draw[->, shorten >=1pt] (5.1,-1.1) -- (5.1,-0.75);
+
+        % 1-3
+        \draw (3.9,-0.75) -- (3.9,-1.2);
+        \draw (3.9,-1.2) -- (8.2,-1.2);
+        \draw[->, shorten >=1pt] (8.2,-1.2) -- (8.2,-0.75);
+
+        % 0-3
+        \draw (0.7,-0.75) -- (0.7,-1.3);
+        \draw (0.7,-1.3) -- (8.3,-1.3);
+        \draw[->, shorten >=1pt] (8.3,-1.3) -- (8.3,-0.75);
+
+        % 0-4
+        \draw (0.6,-0.75) -- (0.6,-1.4);
+        \draw (0.6,-1.4) -- (11.2,-1.4);
+        \draw[->, shorten >=1pt] (11.2,-1.4) -- (11.2,-0.75);
+
+        \node[gray, font=\itshape] (time) at (13.3, -1.5) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (12, -1.5) to (13, -1.5);
+    \end{tikzpicture}
+    \caption{Последовательность доступов с указанными конфликтами}
+    \label{fig:all-conflicts}
+\end{figure}
+
+Можно заметить, что не обязательно проверять на зависимость все операции, связанные стрелками. Например, поскольку проверяется пара доступов $(1,4)$ и $(4,5)$, проверять $(1,5)$ необязательно --- зависимость между ними будет следовать из зависимости первых двух. Если подобным образом удалить из все <<избыточные>> стрелки, то схема приобретёт следующий вид:
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (0, -0.25) {write};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (3, -0.25) {read};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (6, -0.25) {read};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (9, -0.25) {write};
+        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (12, -0.25) {read};
+
+        % 0-1
+        \draw (0.9,-0.75) -- (0.9,-1);
+        \draw (0.9,-1) -- (2.1,-1);
+        \draw[->, shorten >=1pt] (2.1,-1) -- (2.1,-0.75);
+
+        % 2-3
+        \draw (6.9,-0.75) -- (6.9,-1);
+        \draw (6.9,-1) -- (8.1,-1);
+        \draw[->, shorten >=1pt] (8.1,-1) -- (8.1,-0.75);
+
+        % 4-5
+        \draw (9.9,-0.75) -- (9.9,-1);
+        \draw (9.9,-1) -- (11.1,-1);
+        \draw[->, shorten >=1pt] (11.1,-1) -- (11.1,-0.75);
+
+        % 0-2
+        \draw (0.8,-0.75) -- (0.8,-1.1);
+        \draw (0.8,-1.1) -- (5.1,-1.1);
+        \draw[->, shorten >=1pt] (5.1,-1.1) -- (5.1,-0.75);
+
+        % 1-3
+        \draw (3.9,-0.75) -- (3.9,-1.2);
+        \draw (3.9,-1.2) -- (8.2,-1.2);
+        \draw[->, shorten >=1pt] (8.2,-1.2) -- (8.2,-0.75);
+
+        \node[gray, font=\itshape] (time) at (13.3, -1.5) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (12, -1.5) to (13, -1.5);
+    \end{tikzpicture}
+    \caption{Последовательность доступов с удалёнными избыточными конфликтами}
+    \label{fig:stripped-conflicts}
+\end{figure}
+
+\subsubsection{Доказательство линейности числа проверок}
+
+Утверждается, что после удаления всех избыточных проверок количество проверок сократится с квадратичного до линейного. Обозначим проверяемые пары доступов как множество рёбер $P:\{(A_i, A_j), j>i\}$ на вершинах доступов $A$. По условию, $P$ не содержит избыточных рёбер, то есть $\forall i < j < k (A_i, A_j) \in P \wedge (A_j, A_k) \in P \implies (A_i, A_k) \notin P$. Иными словами, $P$ можно рассматривать как антитранзитивное отношение.
+
+Выделим в $A$ максимальные цепочки последовательных неконфликтующих доступов. Будем обозначать их как $N^k = (N^k_1, N^k_2, \ldots, N^k_n)$. Пустые промежутки между элементами $N^k$ объединим в цепочки $C^k = (C^k_1, C^k_2, \ldots, C^k_n)$. Таким образом, $A = \sqcup A^i$, где каждый $A^i$ является цепочкой либо конфликтующих ($C^k$), либо неконфликтующих ($N^k$) соседних доступов. Рассмотрим оба типа цепочек и оценим число рёбер в подграфах, образованных ими.
+
+\begin{itemize}
+    \item Подграф на вершинах $(C^k_1, C^k_2, ... C^k_n)$ содержит только рёбра между соседними доступами $C^k_i$ и $C^k_{i+1}$. Любые другие рёбра будут избыточными. Общее число рёбер в этом подграфе составит $|C^k| - 1$.
+    \item В цепочке $(N^k_1, N^k_2, ... N^k_n)$ все соседние доступы являются неконфликтующими, а значит, все $N_i$ являются операциями чтения (согласно таблице \ref{fig:conflict-table}). Следовательно, любые произвольные два элемента из этой последовательности будут неконфликтующими, и число рёбер в подграфе на этих вершинах будет равно нулю.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c1) at (0, 0) {$C^k_1$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c2) at (1.5, 0) {$C^k_2$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c3) at (3, 0) {$C^k_3$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c4) at (4.5, 0) {$C^k_4$};
+        
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (n1) at (7, 0) {$N^n_1$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (n2) at (8.5, 0) {$N^n_2$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (n3) at (10, 0) {$N^n_3$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (n4) at (11.5, 0) {$N^n_4$};
+
+        \draw[->, shorten >=1pt, shorten <=1pt] (c1) -- (c2);
+        \draw[->, shorten >=1pt, shorten <=1pt] (c2) -- (c3);
+        \draw[->, shorten >=1pt, shorten <=1pt] (c3) -- (c4);
+    
+
+    \end{tikzpicture}
+    \caption{Рёбра $P$ на цепочках $C$ и $N$}
+\end{figure}
+
+По построению, две соседних цепочки $A^k$ и $A^{k+1}$ всегда будут иметь противоположные типы. Рассмотрим случай $(C^k, N^{k+1})$. Тогда, согласно таблице, последний $C^k_i$ конфликтует со всеми чтениями из $N^{k+1}$. Поскольку $C^k_i$ является последним конфликтующим доступом перед $N^{k+1}$, такое ребро не может быть избыточным, следовательно, оно лежит в $P$. С другой стороны, никакой другой $C^k_n$ нельзя связать ребром напрямую с каким-либо чтением из $N^{k+1}$. Такое ребро дублировало бы собой существующий путь: $C^k_n \rightarrow C^k_{n+1} \rightarrow \ldots \rightarrow C^k_i \rightarrow N^{k+1}_j$. Аналогично, в случае $(N^k, C^{k+1})$, первый доступ $C^{k+1}_j$ был бы связан ребром со всеми $N^k_i$.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c1) at (0, 0) {$C^k_1$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c2) at (1.5, 0) {$C^k_2$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c3) at (3, 0) {$C^k_3$};
+        
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (n1) at (5, 0) {$N^{k+1}_1$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (n2) at (6.5, 0) {$N^{k+1}_2$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (n3) at (8, 0) {$N^{k+1}_3$};
+
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c4) at (10, 0) {$C^{k+2}_1$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c5) at (11.5, 0) {$C^{k+2}_2$};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c6) at (13, 0) {$C^{k+2}_3$};
+
+        \draw[->, shorten >=1pt, shorten <=1pt] (c1) -- (c2);
+        \draw[->, shorten >=1pt, shorten <=1pt] (c2) -- (c3);
+
+        \draw[->, shorten >=1pt, shorten <=1pt] (c3) to[out=320,in=220] (n1);
+        \draw[->, shorten >=1pt, shorten <=1pt] (c3) to[out=320,in=220] (n2);
+        \draw[->, shorten >=1pt, shorten <=1pt] (c3) to[out=320,in=220] (n3);
+
+        \draw[->, shorten >=1pt, shorten <=1pt] (n1) to[out=40,in=140] (c4);
+        \draw[->, shorten >=1pt, shorten <=1pt] (n2) to[out=40,in=140] (c4);
+        \draw[->, shorten >=1pt, shorten <=1pt] (n3) to[out=40,in=140] (c4);
+
+        \draw[->, shorten >=1pt, shorten <=1pt] (c4) -- (c5);
+        \draw[->, shorten >=1pt, shorten <=1pt] (c5) -- (c6);
+
+    \end{tikzpicture}
+    \caption{Рёбра $P$ на последовательности цепочек вида $(C, N, C)$}
+\end{figure}
+
+Таким образом, между вершинами из соседних цепочек $(N^k, C^{k+1})$ или $(C^k, N^{k+1})$ присутствует $|N|$ рёбер. Их наличие гарантирует существование пути между любым элементом из первой и любым элементом из второй цепочки. Поскольку это верно для всех соседних цепочек, а весь набор доступов $A$ состоит из цепочек чередующихся типов, то любые два доступа из любых двух разных цепочек будут связаны односторонним путём. Следовательно, любые другие рёбра между цепочками будут избыточными.
+
+В общей сложности число рёбер в графе не превысит $2 \cdot \Sigma_{N^i} |N^i| + \Sigma_{C^i} |C^i| \leq 2 \cdot \Sigma_{A^i} |A^i| \leq 2 \cdot |A|$.
+
+Более того, такое множество $P$ образует минимальный набор проверок, которые необходимо выполнить для поиска потенциальных гонок. Поскольку никакое ребро в $P$ не является избыточным, удаление любого одного ребра приведёт к тому что два доступа $A_i$ и $A_j$, которые были им соединены, больше не будут иметь ориентированного пути, и не будут проверены на зависимость, несмотря на то что они должны быть проверены согласно таблице \ref{fig:conflict-table}.
+
+\subsubsection{Введение метода критических доступов и его применение для гонок вида \ref{subsec:file-content-races}}
+
+Помимо линейности числа доступов, в предыдущем пункте было также показано, какой вид будет иметь интересующее нас множество рёбер для проверки ($P$):
+
+\begin{itemize}
+    \item Все доступы внутри цепочек вида ($C$) связаны друг с другом линейно;
+    \item Все доступы из цепочек вида ($N$) связаны слева и справа с ближайшими соседями из соседних цепочек;
+\end{itemize}
+
+Эти правила легко реализовать алгоритмически. Необходимо лишь знать, где проходят границы между цепочками. Будем называть доступ критическим, если он принадлежит цепочке вида $C$ и некритическим, если он принадлежит цепочке вида $N$. В предыдущем пункте было замечено, что в контексте поиска гонок вида \ref{subsec:file-content-races}, если доступ является некритическим, то он является чтением. В обратную сторону это не всегда верно: если среди двух операций записи встретится одна операция чтения, она не образует цепочку вида $N$, поскольку будет зависеть от обоих своих соседей.
+
+Однако этот крайний случай не мешает провести однозначное соответствие между видами доступов и критичностью. Даже если на месте единичного чтения вставить $N$---цепочку длины 1, итоговое множество $P$ не изменится:
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c11) at (0, 0) {C};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c21) at (1.5, 0) {C};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (n31) at (3.5, 0) {N};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c41) at (5.5, 0) {C};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c51) at (7, 0) {C};
+
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c12) at (0, 2) {C};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c22) at (1.5, 2) {C};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c32) at (3.5, 2) {C};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c42) at (5.5, 2) {C};
+        \node[style=draw, minimum width=1cm, minimum height=1cm] (c52) at (7, 2) {C};
+
+        \draw[->, shorten >=2pt, shorten <=2pt] (c11) -- (c21);
+        \draw[->, shorten >=4pt, shorten <=4pt] (c21) to[out=320,in=220] (n31);
+        \draw[->, shorten >=4pt, shorten <=4pt] (n31) to[out=40,in=140] (c41);
+        \draw[->, shorten >=2pt, shorten <=2pt] (c41) -- (c51);
+
+        \draw[->, shorten >=2pt, shorten <=2pt] (c12) -- (c22);
+        \draw[->, shorten >=2pt, shorten <=2pt] (c22) -- (c32);
+        \draw[->, shorten >=2pt, shorten <=2pt] (c32) -- (c42);
+        \draw[->, shorten >=2pt, shorten <=2pt] (c42) -- (c52);
+
+    \end{tikzpicture}
+    \caption{Независимость множества $P$ от наличия $N$-цепочек длины 1}
+\end{figure}
+
+Таким образом, если вместо таблицы конфликтов использовать разделение доступов на критические и некритические, то можно проверять лишь минимальный набор зависимостей, имеющий линейный от числа доступов размер. Этот алгоритм и будет применяться в дальшейшем.
+
+\subsubsection{Применение метода критических доступов для гонок вида \ref{subsec:path-race}}
+
+Прежде были рассмотрены только гонки на содержимом файла (см. \ref{subsec:file-content-races}). Для них критическим был определен доступ \texttt{write}, а некритическим --- \texttt{read}. Остальные виды доступов не рассматривались, поскольку являлись служебными или не были связаны с номерами inode.
+
+В отличие от предыдущего случая, поиск гонок на пути к файлу требует список операций на пути, а не на номере inode (см. \ref{subsec:path-race}). Cреди всего списка доступов (см. \ref{subsec:cricital-accesses}), с путями работают \texttt{read}, \texttt{write} и \texttt{unlink}. Есть также доступ типа \texttt{dir\_lookup}, но он предназначен только для поиска гонок с созданием директорий (см. \ref{subsec:dir-race}) и не будет рассмотрен здесь.
+
+Осталось разделить выбранные типы доступов на критические и некритические. Обратимся к пункту \ref{subsec:path-race} и составим таблицу конфликтов для этого типа гонок.
+
+\begin{table}[htbp]
+    \centering
+    \begin{tabular}{cccc}
+        \toprule
+        & \texttt{read} & \texttt{write} & \texttt{unlink} \\
+        \midrule
+        \texttt{read} & - & - & +\\
+        \texttt{write} & - & - & +\\
+        \texttt{unlink} & ? & + & ?\\
+        \bottomrule
+    \end{tabular}
+    \caption{Таблица конфликтов между операциями для гонок вида \ref{subsec:path-race}}
+    \label{fig:conflict-table-path-race}
+\end{table}
+
+Поскольку после удаления пути может быть только повторное его создание, пары (\texttt{unlink}, \texttt{unlink}) и (\texttt{unlink}, \texttt{read}) помечены знаком вопроса.
+
+Можно заметить, что операции \texttt{read} и \texttt{write} не конфликтуют ни в каком сочетании. Это значит, что их можно отнести к некритическим доступам. Операция \texttt{unlink}, напротив, конфликтует с любой другой операцей, и следовательно, является критической.
+
+Правильный выбор кофликтующих доступов важен для корректного поиска гонок. Если бы все операции кроме чтения (\texttt{unlink} и \texttt{write}) были помечены критическими, как в предыдущем пункте, гонкой на пути могли бы считаться две операции записи. На практике это привело бы к нежелательному дублированию: такая гонка обнаружилась бы и как гонка вида \ref{subsec:path-race} (на содержимом файла) и как гонка вида \ref{subsec:file-content-races} (на пути к файлу).
+
+\subsubsection{Алгоритм поиска гонок вида \ref{subsec:dir-race}}
+
+Согласно пункту \ref{subsec:dir-race}, для поиска гонок этой категории требуется особый набор проверок, связанных через логическое <<или>>. Метод критических доступов не подходит для этого. 
+
+С другой стороны, алгоритм был уже почти полностью описан ранее. Каждую операцию \texttt{dir\_lookup} нужно проверить на наличие зависимости хотя бы с одной предшествующей попыткой создания (операцией \texttt{write}, быть может, неуспешной), произошедшую после последнего \texttt{unlink}. Наивная реализация этого алгоритма будет предполагать квадратичный перебор, однако его можно сократить до линейного, если использовать ленивый алгоритм и кешировать те цели, из которых \texttt{dir\_lookup} не порождает гонку.

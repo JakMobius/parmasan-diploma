@@ -1,0 +1,6 @@
+...
+target write_a has performed write access on inum 100000
+target write_a has performed unlink access on inum 100000
+...
+target append_b has performed write access on inum 100001
+target append_b has performed unlink access on inum 100001
