@@ -1,16 +1,11 @@
+.PHONY: all FORCE
 
-PDFS = main.pdf
+all: presentation diploma
 
-.PHONY: all clean FORCE
+presentation: FORCE
+	cd presentation && make
 
-all: main.pdf
-
-%.pdf: %.tex FORCE
-	latexrun/latexrun $*
-
-clean:
-	latexrun/latexrun --clean-all
-	-rm -f $(PDFS)
+diploma: FORCE
+	cd diploma && make
 
 FORCE:
-	

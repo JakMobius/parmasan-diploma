@@ -1,5 +1,0 @@
-In file included from ./defs.h:2041,
-                 from mpers-m32/struct_blk_user_trace_setup.c:10:
-./syscall.h:14:11: fatal error: sys_func.h: No such file or directory
-   14 | # include "sys_func.h"
-      |           ^~~~~~~~~~~~

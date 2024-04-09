@@ -3,11 +3,11 @@
 \begin{document}
 %    \includeonlyframes{current}
 
-    \title{Инструмент автоматического обнаружения гонок в параллельных сборках на основе Make}
+    \title{Автоматическое обнаружение гонок при параллельных сборках на основе Make}
     \subtitle{Метод и реализация}
-    \date{4 декабря 2023 г.}
+    \date{X июня 2024 г.}
     \author{Артем Климов, Владислав Иванишин, Александр Монаков}
-    \institute{\!\includegraphics[width=10em]{logo_EN_basic.png}}
+    \institute{\!\includegraphics[width=10em]{logo_RU_basic.png}}
 
     \captionsetup{font=footnotesize,labelformat=empty}
 
@@ -60,8 +60,8 @@
         и результат выполнения программы зависит от порядка выполнения потоков.
 
         \begin{itemize}
-            \item Одновременное чтение и запись в одно и то же место памяти.
-            \item Создание каталога и одновременная работа с его содержимым.
+            \item Одновременное чтение и запись по одному и тому же адресу;
+            \item Создание каталога и одновременная работа с его содержимым;
             \item Удаление ресурса без ожидания окончания его использования.
         \end{itemize}
 
@@ -78,13 +78,10 @@
 
         \lstinputlisting[language=C++]{src/racesample.cpp}
 
-        Если выполнение будет напланировано неудачно, \texttt{counter} может быть увеличено дважды, и
-        окончательное значение будет равно 2.
+        С неудачным планированием переменная может быть увеличена дважды, и окончательное значение будет равно 2.
 
         \note{
-            Здесь представлен классический пример гонки на языке C++. Два потока пытаются увеличить переменную counter,
-            если она меньше 1. Если выполнение \textbf{программы} будет спланировано \textbf{неудачно}, то обе проверки будут проведены
-            \textbf{раньше}, чем оба увеличения, и в итоге значение counter будет равно 2.
+            Обычно о состояниях гонок говорят в контексте языков программирования, таких как C++ или Java. В них гонки могут возникать из-за отсутствия синхронизации между процессами. Например, забытым мьютексом, как в примере на экране.
         }
 
     \end{frame}
@@ -97,69 +94,24 @@
 
         \begin{center}
             \begin{tikzpicture}
-                % Frame 1
-                \only<1> \node[style=draw, minimum width=1.5cm] (libcpp) at (2,1.5) {lib.cpp};
-                \only<1> \node[style=draw, minimum width=1.5cm] (libo) at (4,1.5) {lib.o};
-                \only<1> \node[style=draw, minimum width=1.5cm] (liba) at (6,1.5) {lib.a};
+                \node[style=draw, minimum width=1.5cm] (libcpp) at (2,1.5) {lib.cpp};
+                \node[style=draw, minimum width=1.5cm] (libo) at (4,1.5) {lib.o};
+                \node[style=draw, minimum width=1.5cm] (liba) at (6,1.5) {lib.a};
 
-                \only<1> \node[style=draw, minimum width=3cm] (appcpp) at (2.75,0) {app.cpp};
-                \only<1> \node[style=draw, minimum width=3cm] (appo) at (6.25,0) {app.o};
-                \only<1> \node[style=draw, minimum width=3cm] (app) at (9.75,0) {app};
+                \node[style=draw, minimum width=3cm] (appcpp) at (2.75,0) {app.cpp};
+                \node[style=draw, minimum width=3cm] (appo) at (6.25,0) {app.o};
+                \node[style=draw, minimum width=3cm] (app) at (9.75,0) {app};
 
-                \only<1> \node[text width=3cm] at (9.5,1.1) {
-                    \textit{\texttt{app} зависит от \texttt{lib.a}, но \textbf{не дожидается его}}
+                \node[text width=5cm] at (10.5,1.1) {
+                    \texttt{app} зависит от \texttt{lib.a}, но \textbf{не дожидается сборки}
                 };
 
                 % liba -> app
-                \only<1> {
-                    \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-                    (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
-                }
-
-                \mode<beamer>{
-
-                    % Frame 2
-                    \only<2> \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
-                    \only<2> \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
-                    \only<2> \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
-
-                    \only<2> \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
-                    \only<2> \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
-                    \only<2> \node[style=draw, minimum width=2cm] (app) at (7.25,0) {app};
-                    \only<2> \node[red, style=draw, minimum width=2cm] (failure) at (9.75,0) {ошибка};
-
-                    \only<2> \node[red, style=draw, dashed, minimum width=2cm] (error) at (4,0.75) {lib.a не готово};
-
-                    \only<2> {
-                        \draw[red, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-                        (error) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
-                    }
-
-                    \only<2> \draw[red, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (app) -- (failure);
-
-                    % Frame 3
-                    \only<3> \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
-                    \only<3> \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
-                    \only<3> \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
-
-                    \only<3> \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
-                    \only<3> \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
-                    \only<3> \node[style=draw, minimum width=2cm] (app) at (10.8,0) {app};
-
-                    \only<3> \node[text width=3cm] at (7.8,0.55) {
-                        \small{\textit{поток 2 ожидает \texttt{lib.a} перед связыванием приложения \texttt{app}}}
-                    };
-
-                    % liba -> app
-                    \only<3> {
-                        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-                        (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
-                    }
-
-                }
+                \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
 
                 % Common
-                \node[minimum width=13cm, minimum height=3.5cm] (sizer) at (5.5,0.3) {};
+                \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
                 \node at (0,1.5) {Поток 1:};
                 \node at (0,0) {Поток 2:};
 
@@ -168,7 +120,7 @@
                 ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
 
                 % Time text and arrow
-                \node[gray, font=\itshape] (time) at (5.5, -1.0) {время};
+                \node[gray, font=\itshape] (time) at (11.4, -1.16) {$\tau$};
                 \draw[gray, line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
 
                 \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
@@ -177,56 +129,122 @@
             \end{tikzpicture}
         \end{center}
 
-        \pause
+        \note{
+            Однако состояния гонок могут возникать и при сборке проектов. Там, вместо мьютексов, семафоров или условных переменных примитивами синхронизации являются зависимости между целями сборки. Отсутствие нужной зависимости, по аналогии с отсутствием мьютекса в предыдущем слайде, может привести к состоянию гонки.
+
+            На слайде изображен процесс сборки некоторого проекта. В нем \textbf{библиотека} "lib" может собираться параллельно с \textbf{приложением}, которое ее использует.
+
+            Однако в схеме сборки не указано, что для компоновки приложения необходимо дождаться сборки библиотеки.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Введение: Состояния гонки в схемах сборки}
         \begin{itemize}
-            \item Что если сборка библиотеки займет больше времени?
-            \pause
+            \item Если сборка библиотеки затянется, произойдет ошибка:
+        \end{itemize}
+
+        \begin{center}
+            \begin{tikzpicture}
+                \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
+                \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
+                \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
+
+                \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
+                \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
+                \node[style=draw, minimum width=2cm] (app) at (7.25,0) {app};
+                \node[red, style=draw, minimum width=2cm] (ошибка) at (9.75,0) {ошибка};
+
+                \node[red, style=draw, dashed, minimum width=4cm] (error) at (3.5,0.75) {lib.a еще не готова};
+
+                \draw[red, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                (error) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+
+                \draw[red, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (app) -- (ошибка);
+
+                % Common
+                \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
+                \node at (0,1.5) {Поток 1:};
+                \node at (0,0) {Поток 2:};
+
+                % appo -> app
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
+
+                % Time text and arrow
+                \node[gray, font=\itshape] (time) at (11.4, -1.16) {$\tau$};
+                \draw[gray, line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
+
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
+            \end{tikzpicture}
+        \end{center}
+
+        \note{
+            Если разработчику не повезёт и сборка библиотеки займёт много времени, то сборка всего проекта может завершиться неудачей.
+        }
+    \end{frame}
+
+    \begin{frame}[label=current]{Введение: Состояния гонки в схемах сборки}
+        \begin{itemize}
             \item \textbf{Решение:} Определить пропущенную зависимость и добавить ее в схему сборки.
         \end{itemize}
 
+        \begin{center}
+            \begin{tikzpicture}
+                \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
+                \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
+                \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
+
+                \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
+                \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
+                \node[style=draw, minimum width=2cm] (app) at (10.8,0) {app};
+
+                \node[text width=3.6cm] at (8,0.5) {
+                    \small{Поток 2 ждёт \texttt{lib.a} перед сборкой \texttt{app}}
+                };
+
+                % liba -> app
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+
+                % Common
+                \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
+                \node at (0,1.5) {Поток 1:};
+                \node at (0,0) {Поток 2:};
+
+                % appo -> app
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+                ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
+
+                % Time text and arrow
+                \node[gray, font=\itshape] (time) at (11.4, -1.16) {$\tau$};
+                \draw[gray, line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
+
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
+                \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
+            \end{tikzpicture}
+        \end{center}
+
         \note{
-            Это был пример на C++, а теперь давайте поговорим о том, как состояния гонок могут возникать при сборке
-            проектов.
-
-            На слайде изображен процесс сборки некоторого проекта. В нем \textbf{библиотека} "lib" может собираться
-            параллельно с \textbf{приложением}, которое ее использует.
-
-            Однако в схеме сборки не указано, что для связывания приложения необходимо дождаться сборки библиотеки, и здесь
-            \textbf{разработчику повезло}, и библиотека сама собой успела собраться к моменту связывания. Но если
-            разработчику повезет \textbf{меньше} и сборка библиотеки \textbf{затянется}, то сборка всего проекта
-            завершится неудачей.
-
-            В этом случае разработчик вынужден либо перезапустить сборку и надеяться на лучшее, либо найти недостающую
-            зависимость и добавить ее в схему сборки.
+            Состояние гонки в этом случае можно исправить добавлением недостающей зависимости.
         }
     \end{frame}
 
     \begin{frame}[label=current]{Введение: Состояния гонок в реальных проектах}
+        \tikz[remember picture, overlay] \node[anchor=center] at ($(current page.center)-(0,-3.0)$) {
+            Ошибки сборки, связанные с состояниями гонок, часто становятся предметом обсуждения на форумах:
+        };
 
-        Такие проблемы иногда встречаются даже в крупных проектах.
-        Они могут быть подтверждены следующими сообщениями об ошибках:
-
-        \begin{itemize}
-            \item Vim:
-            \lstinputlisting[
-                basicstyle=\small\ttfamily,
-                numbers=none
-            ]{src/vim-race.txt}
-
-            \item strace:
-            \lstinputlisting[
-                basicstyle=\small\ttfamily,
-                numbers=none
-            ]{src/strace-race.txt}
-        \end{itemize}
+        \tikz[remember picture, overlay] \node[anchor=center] at ($(current page.center)-(0,0)$) {
+            \includegraphics[width=1.1\textwidth]{gentoo-races}
+        };
 
         \note{
-            Состояния гонок коварны тем, что являются скрытой проблемой, которая может проявиться самым нежелательным
-            образом. Спонтанная ошибка сборки - даже не самое страшное ее проявление. Например, состояния гонок могут
-            приводить к уязвимостям и другим проблемам в собранном проекте. Позже мы рассмотрим такой пример.
+            Состояния гонок коварны тем, что являются скрытой проблемой, которая может проявиться самым нежелательным образом. Спонтанная ошибка сборки - даже не самое страшное ее проявление. Хуже, когда, состояния гонок приводят к уязвимостям и другим проблемам в собранном проекте.
 
-            Связи с их скрытостью, их сложно искать людям. Даже в таких проектах, как Vim, над которым трудятся тысячи
-            разработчиков, такие гонки присутствуют и остаются незамеченными.
+            Связи с их скрытостью, их сложно искать и отлаживать вручную. Подтверждение этому можно найти на форуме Gentoo, где в настоящее время открыто свыше 50 обсуждений на эту тему. Некоторые из них были открыты более 10 лет назад и по прежнему остаются нерешенными.
         }
     \end{frame}
 

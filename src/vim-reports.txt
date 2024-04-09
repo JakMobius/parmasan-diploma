@@ -1,3 +1,0 @@
-%\textcolor{red}{\textbf{race found}}% on file 'inst_dir/bin':
- - write at target inst_dir/bin
- - dir_lookup at target installtutorbin

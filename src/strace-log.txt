@@ -1,9 +1,0 @@
-$ strace -f -e trace=%file make
-...
-[pid 1017] openat(AT_FDCWD, "main.o", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3
-...
-[pid 1020] openat(AT_FDCWD, "lib.o", O_WRONLY|O_CREAT|O_TRUNC, 0666) = 3
-...
-[pid 1025] openat(AT_FDCWD, "main.o", O_RDONLY) = 7
-[pid 1025] openat(AT_FDCWD, "lib.o", O_RDONLY) = 8
-[pid 1025] openat(AT_FDCWD, "lib.o", O_RDONLY) = 9

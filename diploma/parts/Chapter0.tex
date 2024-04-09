@@ -12,7 +12,6 @@
 \begin{figure}[H]
 	\centering
     \begin{tikzpicture}
-        % Frame 1
         \node[style=draw, minimum width=1.5cm] (libcpp) at (2,1.5) {lib.cpp};
         \node[style=draw, minimum width=1.5cm] (libo) at (4,1.5) {lib.o};
         \node[style=draw, minimum width=1.5cm] (liba) at (6,1.5) {lib.a};
@@ -63,14 +62,14 @@
         \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
         \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
         \node[style=draw, minimum width=2cm] (app) at (7.25,0) {app};
-        \node[red, style=draw, minimum width=2cm] (ошибка) at (9.75,0) {ошибка};
+        \node[style=draw, minimum width=2cm] (ошибка) at (9.75,0) {ошибка};
 
-        \node[red, style=draw, dashed, minimum width=4cm] (error) at (3.5,0.75) {lib.a еще не готова};
+        \node[style=draw, dashed, minimum width=4cm] (error) at (3.5,0.75) {lib.a еще не готова};
 
-        \draw[red, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
         (error) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
 
-        \draw[red, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (app) -- (ошибка);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (app) -- (ошибка);
 
         % Common
         \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};

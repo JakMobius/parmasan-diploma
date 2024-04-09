@@ -1,3 +1,0 @@
-%\textcolor{red}{\textbf{race found}}% at file 'src/po/LINGUAS':
- - write at target gvim.desktop
- - write at target vim.desktop
