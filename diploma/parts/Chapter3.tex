@@ -242,20 +242,20 @@
 
 В Makefile, изображённом на листинге \ref{lst:race3-complex}, несколько целей самостоятельно создают папку \texttt{build}, а затем используют её для сборки. Предложенный выше алгоритм выдаст ложные срабатывания, зафиксировав первую цель \texttt{libN}, которая первая создала директорию \texttt{build}, и ошибочно потребовав от всех остальных целей \texttt{lib(M $\ne$ N)} иметь зависимость с \texttt{libN}.
 
-В исправленной версии алгоритма операция \texttt{dir\_access} должна требовать наличие зависимости не с единственным успешным созданием директории, а хотя бы с одной, любой попыткой это сделать. Для этого нужно также модифицировать трассировщик системных вызовов: он должен сообщать о тех \texttt{mkdir}, которые завершились с \texttt{EEXIST}. Если для наглядности добавить в схему из листинга \ref{lst:race3-complex} десятую библиотеку, которая не делает \texttt{mkdir -p build}, новый алгоритм найдёт её и корректно сообщит о гонке.
+В исправленной версии алгоритма операция \texttt{dir\_lookup} должна требовать наличие зависимости не с единственным успешным созданием директории, а хотя бы с одной, любой попыткой это сделать. Для этого нужно также модифицировать трассировщик системных вызовов: он должен сообщать о тех \texttt{mkdir}, которые завершились с \texttt{EEXIST}. Если для наглядности добавить в схему из листинга \ref{lst:race3-complex} десятую библиотеку, которая не делает \texttt{mkdir -p build}, новый алгоритм найдёт её и корректно сообщит о гонке.
 
 \begin{figure}[H]
     \centering
     \begin{tikzpicture}
         % Common
         \node[style=draw, rounded corners, minimum width=3cm] (lib1build) at (3.75,2) {\texttt{mkdir(build)}};
-        \node[style=draw, rounded corners, minimum width=3cm] (lib1) at (8.75,2) {\texttt{dir\_access(build)}};
+        \node[style=draw, rounded corners, minimum width=3cm] (lib1) at (8.75,2) {\texttt{dir\_lookup(build)}};
 
         \node at (3.75,1) {...};
         \node at (7.75,1) {...};
 
         \node[style=draw, rounded corners, minimum width=3cm] (lib9build) at (3.75,0) {\texttt{mkdir(build)}};
-        \node[style=draw, rounded corners, minimum width=3cm] (lib9) at (8.75,0) {\texttt{dir\_access(build)}};
+        \node[style=draw, rounded corners, minimum width=3cm] (lib9) at (8.75,0) {\texttt{dir\_lookup(build)}};
 
         \node at (0.5,2) {\textbf{lib1}};
         \node at (0.5,1) {...};
@@ -270,7 +270,7 @@
         \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib1build.south east) -- (lib9.north west);
         \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib9build.north east) -- (lib1.south west);
 
-        \node[style=draw, rounded corners, minimum width=3cm] (lib10) at (8.75,-1) {\texttt{dir\_access(build)}};
+        \node[style=draw, rounded corners, minimum width=3cm] (lib10) at (8.75,-1) {\texttt{dir\_lookup(build)}};
         \node at (0.5,-1) {\textbf{lib10}};
         \node[gray, style=draw, rounded corners, dashed, minimum width=3cm] (lib10build) at (3.75,-1) {no \texttt{mkdir}};
         \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib1build) to[out=0, in=180] (lib10);

@@ -1,10 +1,10 @@
-all: library_1 ... library_9
+all: lib1 ... lib9
 
-library_1:
+lib1:
     %\colorbox{yellow}{mkdir -p build}%
     build_library build/lib1.a
 ...
 
-library_9:
+lib9:
     %\colorbox{yellow}{mkdir -p build}%
     build_library build/lib9.a
