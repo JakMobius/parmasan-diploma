@@ -240,44 +240,84 @@
     language=bash,
 ]{src/directory-race-5.make}
 
-В Makefile, изображённом на листинге \ref{lst:race3-complex}, несколько целей самостоятельно создают папку \texttt{build}, а затем используют её для сборки. Предложенный выше алгоритм выдаст ложные срабатывания, зафиксировав первую цель \texttt{libN}, которая первая создала директорию \texttt{build}, и ошибочно потребовав от всех остальных целей \texttt{lib(M $\ne$ N)} иметь зависимость с \texttt{libN}.
-
-В исправленной версии алгоритма операция \texttt{dir\_lookup} должна требовать наличие зависимости не с единственным успешным созданием директории, а хотя бы с одной, любой попыткой это сделать. Для этого нужно также модифицировать трассировщик системных вызовов: он должен сообщать о тех \texttt{mkdir}, которые завершились с \texttt{EEXIST}. Если для наглядности добавить в схему из листинга \ref{lst:race3-complex} десятую библиотеку, которая не делает \texttt{mkdir -p build}, новый алгоритм найдёт её и корректно сообщит о гонке.
+В Makefile, изображённом на листинге \ref{lst:race3-complex}, несколько целей самостоятельно создают папку \texttt{build}, а затем используют её для сборки. На рис. \ref{fig:false-mkdir-conflict} представлен сценарий сборки этого Makefile, при котором алгоритм выдаст ложные срабатывание.
 
 \begin{figure}[H]
     \centering
     \begin{tikzpicture}
-        % Common
-        \node[style=draw, rounded corners, minimum width=3cm] (lib1build) at (3.75,2) {\texttt{mkdir(build)}};
-        \node[style=draw, rounded corners, minimum width=3cm] (lib1) at (8.75,2) {\texttt{dir\_lookup(build)}};
+        \node[style=draw, minimum width=5cm, minimum height=0.9cm] at (3.5,3) {\texttt{lib1: mkdir build}};
+        \node[style=draw, minimum width=5cm, minimum height=0.9cm] at (3.5,2) {\texttt{lib2: mkdir build}};
+        \node[style=draw, minimum width=5cm, minimum height=1.9cm] at (3.5,0.5) {\texttt{lib2: build\_library}};
 
-        \node at (3.75,1) {...};
-        \node at (7.75,1) {...};
+        \node[align=left, text width=3cm] (build) at (12.5,3) {\texttt{./build}};
+        \node[align=left, text width=3cm] (buildaout) at (12.5,0) {\texttt{./build/lib1.a}};
 
-        \node[style=draw, rounded corners, minimum width=3cm] (lib9build) at (3.75,0) {\texttt{mkdir(build)}};
-        \node[style=draw, rounded corners, minimum width=3cm] (lib9) at (8.75,0) {\texttt{dir\_lookup(build)}};
+        \draw[-, shorten <=4pt] (6,2) -- (9,2);
+        \draw[-] (8.9,1.9) -- (9.1,2.1);
+        \draw[-] (9.1,1.9) -- (8.9,2.1);
 
-        \node at (0.5,2) {\textbf{lib1}};
-        \node at (0.5,1) {...};
-        \node at (0.5,0) {\textbf{lib9}};
+        \draw[thick, ->, shorten >=4pt, shorten <=4pt] (6,3) -- (11,3);
+        \draw[thick, -, shorten <=4pt] (6,1) -- (9,1);
+        \draw[thick, ->, shorten >=4pt] (9,1) to[in=180, out=0] (11,3);
 
-        % Time text and arrow
-        \node[gray, font=\itshape] (time) at (10.5, -2.2) {$\tau$};
-        \draw[gray, line width=0.7pt, ->] (-1, -2.2) to (10, -2.2);
+        \draw[->, shorten >=4pt, shorten <=4pt] (6,0) -- (11,0);
 
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (lib1build) -- (lib1);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (lib9build) -- (lib9);
-        \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib1build.south east) -- (lib9.north west);
-        \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib9build.north east) -- (lib1.south west);
+        \node at (7.7, 2.3) {failed \texttt{write}};
 
-        \node[style=draw, rounded corners, minimum width=3cm] (lib10) at (8.75,-1) {\texttt{dir\_lookup(build)}};
-        \node at (0.5,-1) {\textbf{lib10}};
-        \node[gray, style=draw, rounded corners, dashed, minimum width=3cm] (lib10build) at (3.75,-1) {no \texttt{mkdir}};
-        \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib1build) to[out=0, in=180] (lib10);
-        \draw[gray, dashed, line width=0.7pt, shorten >=2pt, shorten <=2pt, ->] (lib9build) to[out=0, in=180] (lib10);
+        \node at (7.7, 3.3) {\texttt{\textbf{write}}};
+        \node at (7.7, 1.3) {\texttt{\textbf{dir\_lookup}}};
+
+        \node at (7.7, 0.3) {\texttt{write}};
+
+        \node[gray, font=\itshape] (time) at (0.5, -1) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (0.5, 3.5) to (0.5, -0.5);
     \end{tikzpicture}
-    \caption{Обнаружение гонок на основе попыток создания директории}
+    \caption{Возможный сценарий сборки Makefile из листинга \ref{lst:race3-complex}}
+    \label{fig:false-mkdir-conflict}
 \end{figure}
+
+Цель \texttt{lib1} выполнила \texttt{mkdir} первой. Когда \texttt{lib2} выполнила свой \texttt{mkdir}, он завершился ошибкой \texttt{EEXIST}, поскольку директория уже была создана. В связи с этим все дальнейшие \texttt{dir\_access} будут проверяться на зависимость с первым успешным \texttt{mkdir}, совершенным целью \texttt{lib1}. Это приведёт к ложным срабатываниям. В связи с этим, метод, описанный в предыдущих главах, не подходит для обнаружения гонок на каталоге.
+
+Чтобы утверждать об отсутствии гонки, достаточно убедиться, что перед любой операцией \texttt{dir\_lookup} директория гарантированно будет создана. Для этого нужно проверить, что существует хотя бы одна операция \texttt{write} (вероятно, неуспешная), которая гарантированно произойдет раньше этого \texttt{dir\_lookup}. Чтобы реализовать такую проверку, нужно начать учитывать неуспешные \texttt{mkdir}, которые завершились с \texttt{EEXIST}, как на рис. \ref{fig:false-mkdir-conflict-fixed}.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \node[style=draw, minimum width=5cm, minimum height=0.9cm] at (3.5,3) {\texttt{lib1: mkdir build}};
+        \node[style=draw, minimum width=5cm, minimum height=0.9cm] at (3.5,2) {\texttt{lib2: mkdir build}};
+        \node[style=draw, minimum width=5cm, minimum height=1.9cm] at (3.5,0.5) {\texttt{lib2: build\_library}};
+
+        \node[align=left, text width=3cm] (build) at (12.5,3) {\texttt{./build}};
+        \node[align=left, text width=3cm] (buildaout) at (12.5,0) {\texttt{./build/lib1.a}};
+
+        \draw[->, shorten >=4pt, shorten <=4pt] (6,3) -- (11,3);
+        \draw[thick,  -, shorten <=4pt] (6,2) -- (9,2);
+        \draw[thick,  ->, shorten >=4pt] (9,2) to[in=180, out=0] (11,3);
+
+        \draw[-, shorten <=4pt] (6,1) -- (9,1);
+        \draw[->, shorten >=4pt] (9,1) to[in=180, out=0] (11,3);
+
+        \draw[thick, -, shorten <=4pt] (6,1) -- (9,1);
+        \draw[thick, ->, shorten >=4pt] (9,1) to[in=180, out=0] (11,3);
+
+        \draw[->, shorten >=4pt, shorten <=4pt] (6,0) -- (11,0);
+
+        \node at (7.7, 3.3) {\texttt{write}};
+        \node at (7.7, 2.3) {\textbf{failed \texttt{write}}};
+        \node at (7.7, 1.3) {\textbf{\texttt{dir\_lookup}}};
+
+        \node at (7.7, 0.3) {\texttt{write}};
+
+        \node[gray, font=\itshape] (time) at (0.5, -1) {$\tau$};
+        \draw[gray, line width=0.7pt, ->] (0.5, 3.5) to (0.5, -0.5);
+    \end{tikzpicture}
+    \caption{Схема \ref{fig:false-mkdir-conflict} с учитыванием неуспешных \texttt{mkdir}}
+    \label{fig:false-mkdir-conflict-fixed}
+\end{figure}
+
+В примере выше \texttt{dir\_access} можно связать с неуспешным \texttt{mkdir}, который был произведён раньше той же целью. Таким образом, ложное срабатывание будет исключено.
+
+Необходимо также учесть случай, когда \texttt{dir\_access} происходит раньше любого \texttt{write}. Это означает, что директория была создана до начала сборки, и сообщать о гонке не нужно.
 
 \subsection{Поиск конфликтующих доступов}
 \label{subsec:cricital-accesses}
@@ -298,7 +338,7 @@
 
 Для любых двух соседних операций на одном и том же номере inode можно легко сказать, являются ли они конфликтующими. Например, для пары операций чтения это неверно: результат будет одним и тем же вне зависимости от порядка. Чтение и запись могут образовать конфликт, поскольку от порядка будет зависеть результат чтения. Рассуждая аналогично, можно построить целую таблицу:
 
-\begin{table}[htbp]
+\begin{table}[H]
     \centering
     \begin{tabular}{cccc}
         \toprule
@@ -462,7 +502,7 @@
         \node[style=draw, minimum width=1cm, minimum height=1cm] (c2) at (1.5, 0) {$C^k_2$};
         \node[style=draw, minimum width=1cm, minimum height=1cm] (c3) at (3, 0) {$C^k_3$};
         \node[style=draw, minimum width=1cm, minimum height=1cm] (c4) at (4.5, 0) {$C^k_4$};
-        
+
         \node[style=draw, minimum width=1cm, minimum height=1cm] (n1) at (7, 0) {$N^n_1$};
         \node[style=draw, minimum width=1cm, minimum height=1cm] (n2) at (8.5, 0) {$N^n_2$};
         \node[style=draw, minimum width=1cm, minimum height=1cm] (n3) at (10, 0) {$N^n_3$};
@@ -471,7 +511,7 @@
         \draw[->, shorten >=1pt, shorten <=1pt] (c1) -- (c2);
         \draw[->, shorten >=1pt, shorten <=1pt] (c2) -- (c3);
         \draw[->, shorten >=1pt, shorten <=1pt] (c3) -- (c4);
-    
+
 
     \end{tikzpicture}
     \caption{Рёбра $P$ на цепочках $C$ и $N$}
@@ -485,7 +525,7 @@
         \node[style=draw, minimum width=1cm, minimum height=1cm] (c1) at (0, 0) {$C^k_1$};
         \node[style=draw, minimum width=1cm, minimum height=1cm] (c2) at (1.5, 0) {$C^k_2$};
         \node[style=draw, minimum width=1cm, minimum height=1cm] (c3) at (3, 0) {$C^k_3$};
-        
+
         \node[style=draw, minimum width=1cm, minimum height=1cm] (n1) at (5, 0) {$N^{k+1}_1$};
         \node[style=draw, minimum width=1cm, minimum height=1cm] (n2) at (6.5, 0) {$N^{k+1}_2$};
         \node[style=draw, minimum width=1cm, minimum height=1cm] (n3) at (8, 0) {$N^{k+1}_3$};
@@ -594,6 +634,6 @@
 
 \subsubsection{Алгоритм поиска гонок вида \ref{subsec:dir-race}}
 
-Согласно пункту \ref{subsec:dir-race}, для поиска гонок этой категории требуется особый набор проверок, связанных через логическое <<или>>. Метод критических доступов не подходит для этого. 
+Согласно пункту \ref{subsec:dir-race}, для поиска гонок этой категории требуется особый набор проверок, связанных через логическое <<или>>. Метод критических доступов не подходит для этого.
 
 С другой стороны, алгоритм был уже почти полностью описан ранее. Каждую операцию \texttt{dir\_lookup} нужно проверить на наличие зависимости хотя бы с одной предшествующей попыткой создания (операцией \texttt{write}, быть может, неуспешной), произошедшую после последнего \texttt{unlink}. Наивная реализация этого алгоритма будет предполагать квадратичный перебор, однако его можно сократить до линейного, если использовать ленивый алгоритм и кешировать те цели, из которых \texttt{dir\_lookup} не порождает гонку.
