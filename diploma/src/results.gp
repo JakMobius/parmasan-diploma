@@ -49,7 +49,7 @@ plot filename using (column(2)):xtic(1) \
                 fs pattern 3 \
                 border, \
            '' using (-column(3)):xtic(1) \
-                title 'Гонки, обнаруженные только \texttt{{-}{-}shuffle}' \
+                title 'Гонки, обнаруженные только \texttt{-{}-shuffle}' \
                 lw 2 \
                 lc rgb "black" \
                 fs pattern 1 \
