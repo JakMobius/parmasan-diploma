@@ -1,7 +1,8 @@
 #!/usr/local/bin/gnuplot
 
-set terminal postscript enhanced color size 10in, 5in fontfile '~/Library/Fonts/dejavu-sans.book.ttf'
+set terminal postscript enhanced color size 10in, 5in adobeglyphnames
 set output 'races.ps'
+set encoding utf8
 
 # Setting plot styles
 set bars fullwidth
@@ -42,9 +43,9 @@ do for [i=2:num_records] {
 
 set label at 1, 9.5 "MinGW-w64" left font ",13"
 
-plot filename using (column(2)):xtic(1) title 'Detected known races' lc rgb "#FF007A99" fs solid border lt 1, \
-           '' using (-column(3)):xtic(1) title 'Missed known races' lc rgb "#FFB69E96" fs solid border lt 2, \
-           '' using (column(4)):xtic(1) title 'Previously unknown races' lc rgb "#FF00CCCC" fs solid border lt 3, \
+plot filename using (column(2)):xtic(1) title 'Гонки, обнаруженные обоими инструментами' lc rgb "#FF007A99" fs solid border lt 1, \
+           '' using (-column(3)):xtic(1) title 'Гонки, обнаруженные только make --shuffle' lc rgb "#FFB69E96" fs solid border lt 2, \
+           '' using (column(4)):xtic(1) title 'Гонки, обнаруженные только parmasan' lc rgb "#FF00CCCC" fs solid border lt 3, \
            0 notitle lc rgb "white" lw 10 lt 1, \
            0 notitle lc rgb "black" lw 2 lt 1
 
