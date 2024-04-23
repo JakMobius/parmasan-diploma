@@ -11,37 +11,38 @@
 \begin{figure}[H]
     \centering
     \begin{tikzpicture}
-        \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan) at (-1, 0) {Санитайзер};
+        \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (sanitizer) at (-1, 0) {Санитайзер};
         \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (tracer) at (3.2, 0) {Трассировщик};
         \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {remake};
         \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child1) at (11, 1) {gcc};
         \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
         \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child3) at (11, -1) {...};
 
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (parmasan) -- (tracer);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
+        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (sanitizer) -- (tracer);
+        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
+        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
+        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
+        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
 
-        \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child1.south west) to[in=310, out=205] (tracer);
-        \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child2.south west) to[in=310, out=190] (tracer);
-        \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child3.south west) to[in=310, out=175] (tracer);
-        \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=310, out=230] (tracer);
+        \draw[line width=1pt, shorten <=2pt] (10, 0.75) arc (90:180:0.5);
+        \draw[line width=1pt, shorten <=2pt] (10, -0.25) arc (90:180:0.5);
+        \draw[line width=1pt] (9.5, 0.25) -- (9.5, -0.75) arc (0:-90:0.5);
+        \draw[line width=1pt] (7, -0.5) -- (7, -0.75) arc (0:-90:0.5);
+        \draw[line width=1pt, shorten <=2pt, ->] (10, -1.25) -- (4, -1.25) arc (270:180:0.5) -- (3.5, -0.5);
+        \node[font=\footnotesize] at (5.25, -1.0) {События ptrace};
 
-        \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (tracer) to[out=240, in=300] (parmasan);
-        \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (make) to[out=150, in=30] (parmasan);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (4.5, 0.5) arc (0:90:0.5) -- (-1, 1.0) arc (90:180:0.5);
+        \node[font=\footnotesize] at (1.8, 1.2) {События над файлами и процессами};
 
-        \node[font=\small] (text1) at (6.7, -2) {События ptrace};
-        \node[font=\small] (text1) at (1, -2) {События над файлами и процессами};
-        \node[font=\small] (text2) at (3.5, 1.8) {Соответствие процессов целям и граф зависимостей};
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (7.5, 0.5) -- (7.5, 1.0) arc (0:90:0.5) -- (-1.5, 1.5) arc (90:180:0.5) -- (-2.0, 0.5);
+        \node[font=\footnotesize] at (3, 1.7) {Соответствие процессов целям и граф зависимостей};
     \end{tikzpicture}
 
     \caption{Схема межпроцессного взаимодействия при сборке под санитайзером}
     \label{fig:parmasan-processes}
 \end{figure}
 
-На рис.~\ref{fig:parmasan-processes} сплошные стрелки связывают родительские процессы с дочерними, пунктирные стрелки указывают передачу данных через Unix-сокеты, и пунктирные серые стрелки показывают, как трассировщик перехватывает системные вызовы, производимые процессами правее, используя системный вызов \texttt{ptrace}.
+Пунктирные стрелки на рис.~\ref{fig:parmasan-processes} связывают родительские процессы с дочерними.
 
 Выбранная архитектура позволяет изолировать санитайзер от непосредственной работы с файловой системой и с дочерними процессами. Результат работы санитайзера определяется лишь сообщениями, которые он получает от трассировщика и от процессов remake. Позже это решение также позволит значительно ускорить итеративную отладку гонок.
 
@@ -55,26 +56,29 @@
 
 По умолчанию трассировщик останавливает все новые процессы на первой инструкции. Это необходимо для того, чтобы успеть настроить перехват системных вызовов и передать санитайзеру информацию о созданном процессе раньше, чем тот начнёт совершать какие-либо действия. Когда санитайзер получает сообщение о создании нового процесса, он добавляет его в общее дерево и отправляет подтверждение трассировщику. Дождавшись ответа, трассировщик позволяет процессу начать работу.
 
-Если процесс успеет открыть какой-то файл раньше, чем санитайзер узнает его цель, он не сможет отнести этот доступ к правильной цели, и может упустить гонку. Поэтому цель, которой соответствует процесс, должна быть получена санитайзером раньше, чем этот процесс будет запущен. Это позволяет реализовать схема \texttt{fork/exec}. После вызова \texttt{fork} pid процесса становится известен. В этот момент remake отправляет его вместе с названием цели санитайзеру. Дождавшись ответного сообщения, и убедившись что санитайзер установил соответствие между процессом и целью, remake заканчивает создание нового процесса вызовом \texttt{exec}.
+Если процесс успеет открыть какой-то файл раньше, чем санитайзер узнает его цель, он не сможет отнести этот доступ к правильной цели, и может пропустить гонку. Поэтому цель, которой соответствует процесс, должна быть получена санитайзером раньше, чем этот процесс будет запущен. Это позволяет реализовать схема \texttt{fork/exec}. После вызова \texttt{fork} pid процесса становится известен. В этот момент remake отправляет его вместе с названием цели санитайзеру. Дождавшись ответного сообщения, и убедившись что санитайзер установил соответствие между процессом и целью, remake заканчивает создание нового процесса вызовом \texttt{exec}.
 
 Утилита remake поддерживает несколько способов порождения новых процессов. Кроме классического \texttt{fork/exec} поддерживается и более эффективный метод, использующий \texttt{posix\_spawn}. Этот способ, однако, не позволяет узнать pid нового процесса перед его запуском. Его нужно отключить, указав флаг \texttt{-{}-disable-posix-spawn} в фазе configure.
 
-\subsection{Обработка вложенных Make}
+Сообщая о гонке, санитайзер указывает два конфликтующих доступа, которые могут произойти в обратном порядке. Один из этих доступов может быть произведён процессом, который уже успел завершиться. В этом случае его pid может быть переиспользован ядром для другого процесса. В связи с этим для идентификации процессов в внутренних структурах санитайзера используется пара чисел (pid, эпоха). Каждый раз, когда pid переиспользуется, эпоха инкрементируется. Это позволяет избежать конфликтов и однозначно ссылаться на уже завершённые процессы.
 
-Крупные проекты бывают разделены на несколько схем сборки, каждая из которых отвечает за свой модуль. <<Корневой>> Makefile запускает их сборку, вызывая вложенный Make. Таким образом, проект можно представить как дерево из модулей. Гонки могут происходить между разными модулями одного проекта.
+\subsection{Обработка вложенных Make}
+\label{subsec:nested-make}
+
+Крупные проекты бывают разделены на несколько схем сборки, каждая из которых отвечает за свой модуль. <<Корневой>> Makefile запускает их сборку, вызывая вложенные Make. Таким образом, проект можно представить как дерево из модулей. Гонки могут происходить между разными модулями одного проекта.
 
 \begin{figure}[H]
     \centering
     \begin{tikzpicture}
         \node (tracer) at (3.8, 0) {...};
-        \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {remake};
-        \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child1) at (11, 1) {gcc};
-        \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
-        \node[minimum width=2cm, minimum height=0.7cm, style=draw, rounded corners] (child3) at (11, -1) {remake};
+        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (make) at (7, 0) {Make~\#1};
+        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child1) at (11, 1) {ld};
+        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
+        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (child3) at (11, -1) {Make~\#2};
 
-        \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child31) at (15, 0) {ld};
-        \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child32) at (15, -1) {rm};
-        \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child33) at (15, -2) {...};
+        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child31) at (15, 0) {gcc};
+        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child32) at (15, -1) {rm};
+        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child33) at (15, -2) {...};
 
         \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
         \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
@@ -90,46 +94,45 @@
         % \node[gray, font=\small] (text2) at (3.5, 1.8) {Соответствие процессов целям и граф зависимостей};
     \end{tikzpicture}
 
-    \caption{Дерево процессов при исползовании вложенных Make}
+    \caption{Дерево процессов при использовании вложенных Make}
     \label{fig:nested-make-pstree}
 \end{figure}
 
-Для корректной обработки таких случаев санитайзер производит поиск гонок в контексте каждого Make-процесса отдельно. При этом учитываются те цели и зависимости, которые определены в схеме сборки, обрабатываемой именно этим Make-процессом. Каждый <<контекст>> производит поиск гонок на основе доступов к файлам, производимым ниже по дереву процессов.
+В случае, если две цели из разных Makefile производят доступ к одному и тому же файлу, санитайзер производит поиск зависимости в контексте их ближайшего общего родителя (LCA). При этом изначальные цели заменяются на цели родительского Makefile, которые породили их на уровне этого родителя.
 
-Рассмотрим процесс \texttt{ld} из рис.~\ref{fig:nested-make-pstree}. Предположим, что он был порождён целью сборки \texttt{target2}, а вложенный Make, являющийся его родительским процессом, порождён целью \texttt{target1} во внешнем Make, как на рис.~\ref{fig:nested-make-pstree-example}.
+Рассмотрим процессы \texttt{gcc} и \texttt{ld} из рис.~\ref{fig:nested-make-pstree}. Предположим, что процесс \texttt{gcc} запускается в ходе сборки библиотеки \texttt{libfoo.a} одноимённой целью, \texttt{ld} - целью \texttt{a.out} а Make~\#2 --- целью \texttt{libfoo}, как на рис.~\ref{fig:nested-make-pstree-2}.
 
 \begin{figure}[H]
     \centering
     \begin{tikzpicture}
         \node (tracer) at (3.8, 0) {...};
-        \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {remake};
-        \node[minimum width=2cm, gray] (child1) at (11, 1.2) {...};
-        \node[minimum width=2cm, minimum height=0.7cm, style=draw, rounded corners] (child2) at (11, 0) {remake};
+        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (make) at (7, 0) {Make~\#1};
+        \node[minimum width=2.5cm, minimum height=0.8cm, gray] (child3) at (11, 2.4) {...};
+        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (child2) at (11, 1.2) {ld};
+        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (child1) at (11, 0) {Make~\#2};
 
-        \node[minimum width=2cm, gray] (child21) at (15, 1.2) {...};
-        \node[minimum width=2cm, minimum height=0.7cm, style=draw, rounded corners] (child22) at (15, 0) {ld};
+        \node[minimum width=2.5cm, minimum height=0.8cm, gray] (child12) at (15, 1.2) {...};
+        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (child11) at (15, 0) {gcc};
 
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
-        \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) -- (child2) node[font=\footnotesize, midway, below] {target1};
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer.east) -- (make.west);
 
-        \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child2) to[in=180, out=0] (child21);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child2) -- (child22) node[font=\footnotesize, midway, below] {target2};
+        \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make.east) -- (child3.west);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make.east) -- (child2.west) node[font=\scriptsize, midway, sloped, below] {a.out};
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make.east) -- (child1.west) node[font=\scriptsize, midway, sloped, below] {libfoo};
+
+        \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child1.east) -- (child12.west);
+        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child1.east) -- (child11.west) node[font=\scriptsize, midway, sloped, below] {libfoo.a};
 
         % \node[gray, font=\small] (text1) at (6.7, -2) {События ptrace};
         % \node[gray, font=\small] (text1) at (1, -2) {События над файлами и процессами};
         % \node[gray, font=\small] (text2) at (3.5, 1.8) {Соответствие процессов целям и граф зависимостей};
     \end{tikzpicture}
 
-    \caption{Пример распространения событий при вложенных Make}
-    \label{fig:nested-make-pstree-example}
+    \caption{Дерево процессов с целями при использовании вложенных Make}
+    \label{fig:nested-make-pstree-2}
 \end{figure}
 
-Если процесс \texttt{ld} на рис.~\ref{fig:nested-make-pstree-example} произведёт чтение файла \texttt{libfoo.so}, то для вложенного Make этот доступ будет зарегистрирован как доступ к \texttt{libfoo.so} из цели \texttt{target2}, а для внешнего Make этот доступ будет зарегистрирован как доступ из цели \texttt{target1}.
-
-Если бы система Linux позволяла устанавливать процессу множество отладчиков, то предложенный подход был бы эквивалентен запуску отдельной пары трассировщик-санитайзер для каждого вложенного Make. Это бы приравняло запуск вложенного Make к запуску обычного процесса. Все доступы к файлам, которые бы производились ниже, в контексте этого санитайзера присваивались бы к той цели, которая породила этот вложенный Make.
-
-Альтернативное обоснование выбранного подхода следует из соображения о том, что любая цель, собираемая во вложенном Make, имеет зависимость от цели, которая породила сам вложенный Make-процесс. Честная проверка наличия зависимости между целью \texttt{A} из вложенного Make и целью \texttt{B} из внешнего Make сводилась бы к проверке наличия зависимости между целью, породившей вложенный Make и целью \texttt{B}.
+Предположим, что упомянутые процессы работают с одним и тем же файлом \texttt{libfoo.a}. Процесс \texttt{gcc} --- на запись, \texttt{ld} --- на чтение. Чтобы проверить наличие гонки, необходимо проверить, что цели, породившие эти процессы (\texttt{libfoo.a} и \texttt{a.out}), связаны зависимостью. Сделать это напрямую невозможно, поскольку они принадлежат разным Makefile, поэтому прежде необходимо переместиться в контекст ближайшего общего родителя этих целей --- процесса Make~\#1.
 
 \subsection{Протокол взаимодействия}
 \label{subsec:pstree}
@@ -214,7 +217,7 @@
     \item \texttt{CHILD <pid> <ppid> <cmdline>}~--- Сообщает о создании нового процесса в дереве, или о том, что существующий процесс сменил свою \texttt{cmdline}, вызвав \texttt{exec}. Это сообщение всегда является синхронным, см.~\ref{subsec:pstree}.
     \item \texttt{READ <}Путь к файлу\texttt{> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- событие открытия процессом файла на чтение.
     \item \texttt{WRITE <}Путь к файлу\texttt{> <pid> <devnum> <inum> <}код возврата\texttt{>}
-   ~--- событие открытия процессом файла на запись.
+    ~--- событие открытия процессом файла на запись.
     \item \texttt{UNLINK <}Путь к файлу\texttt{> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- событие удаления пути (directory entry)
     \item \texttt{INODE\_UNLINK <}Путь к файлу\texttt{> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- дублирует сообщение \texttt{UNLINK} в случае, если удалённый путь был последней жесткой ссылкой на свою inode.
     \item \texttt{DIE <pid>}~--- сообщает о завершении работы процесса с указанным pid. Если свою работу завершает сам трассировщик, он отправляет это сообщение с собственным pid. В этом случае сообщение должно быть синхронным. Это будет гарантировать, что санитайзер успеет обработать все предыдущие сообщения от трассировщика прежде, чем получит сигнал \texttt{SIGCHLD} и остановится.
@@ -246,34 +249,36 @@
     \begin{figure}[H]
         \centering
         \begin{tikzpicture}
-            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan) at (5.0, -3) {Санитайзер в режиме чтения лога};
-            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (log) at (-1, -3) {Лог сборки};
-            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (logger) at (-1, 0) {Логгер};
-            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (tracer) at (3.2, 0) {Трассировщик};
-            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {remake};
+            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan) at (5, -2.5) {Санитайзер в режиме чтения лога};
+            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (trace) at (-1, -2.5) {Лог};
+            \node[style=draw, rounded corners, minimum width=3cm, inner ysep=6pt] (logger) at (-1, 0) {Логгер};
+            \node[gray, style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (tracer) at (3.2, 0) {Трассировщик};
+            \node[gray, style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {remake*};
             \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child1) at (11, 1) {gcc};
             \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
             \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child3) at (11, -1) {...};
 
-            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (logger) -- (tracer);
-            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
-            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
-            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
-            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
+            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (logger) -- (tracer);
+            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
+            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
+            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
+            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
 
-            \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child1.south west) to[in=310, out=205] (tracer);
-            \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child2.south west) to[in=310, out=190] (tracer);
-            \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child3.south west) to[in=310, out=175] (tracer);
-            \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=310, out=230] (tracer);
+            \draw[gray, line width=1pt, shorten <=2pt] (10, 0.75) arc (90:180:0.5);
+            \draw[gray, line width=1pt, shorten <=2pt] (10, -0.25) arc (90:180:0.5);
+            \draw[gray, line width=1pt] (9.5, 0.25) -- (9.5, -0.75) arc (0:-90:0.5);
+            \draw[gray, line width=1pt] (7, -0.5) -- (7, -0.75) arc (0:-90:0.5);
+            \draw[gray, line width=1pt, shorten <=2pt, ->] (10, -1.25) -- (4, -1.25) arc (270:180:0.5) -- (3.5, -0.5);
+            \node[gray, font=\small] at (5.25, -1.0) {События ptrace};
 
-            \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (tracer) to[out=240, in=300] (logger);
-            \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (make) to[out=150, in=30] (logger);
-            \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (logger) -- (log);
-            \draw[line width=1pt, dashed, shorten >=2pt, shorten <=2pt, ->] (log) -- (parmasan);
+            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (4.5, 0.5) arc (0:90:0.5) -- (-1, 1.0) arc (90:180:0.5);
+            \node[gray, font=\small] at (1.8, 1.2) {События над файлами и процессами};
 
-            % \node[gray, font=\small] (text1) at (6.7, -2) {События ptrace};
-            % \node[gray, font=\small] (text1) at (1, -2) {События над файлами и процессами};
-            % \node[gray, font=\small] (text2) at (3.5, 1.8) {Соответствие процессов целям и граф зависимостей};
+            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (7.5, 0.5) -- (7.5, 1.0) arc (0:90:0.5) -- (-1.5, 1.5) arc (90:180:0.5) -- (-2.0, 0.5);
+            \node[gray, font=\small] at (3, 1.7) {Соответствие процессов целям и граф зависимостей};
+
+            \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (trace) -- (parmasan);
+            \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (logger) -- (trace);
         \end{tikzpicture}
 
         \caption{Запись и воспроизведение лога сборки}
@@ -343,7 +348,7 @@
 
 Например, гонка в проекте strace происходила из-за того, что шаблонное правило \texttt{mpers-m\%.stamp} не содержало зависимость с файлом \texttt{sys\_func.h} \cite{strace-race}. В таком случае санитайзер выведет отдельные сообщения о гонках для каждого файла, собираемого этим правилом. На рис.~\ref{fig:testing-results} все такие гонки были сгруппированы вместе.
 
-Диаграмма на рис.~\ref{fig:testing-results} позволяет оценить эффективность разработанного инструмента. Среди 35 гонок, о которых сообщалось изначально, санитайзер успешно обнаружил 29, и сообщил о 10 новых.
+Диаграмма на рис.~\ref{fig:testing-results} позволяет оценить эффективность разработанного инструмента. Среди 35 гонок, о которых сообщалось изначально, санитайзер успешно обнаружил 29, и сообщил о 39 новых.
 
 \subsection{Пример новой обнаруженной гонки}
 
@@ -366,28 +371,42 @@
 
 В версии 9.1.0108 эта гонка была исправлена путём добавления зависимости между целями \texttt{vim.desktop} и \texttt{gvim.desktop}. Для проведения справедливого сравнения санитайзер тестировался на версии 8.2.4595, которую использовал Сергей Трофимович при тестировании режима Make \texttt{-{}-shuffle} и составлении публикации в своём блоге.
 
-\subsection{Сравнение скорости сборки}
+\subsection{Оценка замедления сборки}
 
 Для оценки скорости работы разработанного инструмента было проведено сравнение времени сборки пяти разных проектов с использованием и без использования санитайзера. Для сборки использовалось 8 потоков. Результаты представлены на таблице~\ref{tab:build_time}.
 
 \begin{table}[H]
     \centering
-    \begin{tabular}{cccc}
+    \begin{tabular}{lD{:}{:}{-1}D{:}{:}{-1}D{.}{.}{-1}}
         \toprule
-        Программа & Время сборки & Время сборки с санитайзером & Замедление \\
+        Программа & \multicolumn{1}{c}{Время сборки} & \multicolumn{1}{c}{Время сборки с санитайзером} & \multicolumn{1}{c}{Замедление} \\
         \midrule
-        vim & 18.3с & 20.7с & 13.1\% \\
-        x264 & 29.6с & 33с & 11.5\% \\
-        exifprobe & 1.36с & 1.53с & 12.6\% \\
-        angsd & 21.3с & 23.8с & 11.7\% \\
-        gcc & - & - & -\% \\
+        vim       & 0:18,3                           & 0:20,7                                          & 13,1\%                         \\
+        x264      & 0:29,6                           & 0:33,0                                          & 11,5\%                         \\
+        exifprobe & 0:01,36                          & 0:01,53                                         & 12,6\%                         \\
+        angsd     & 0:21,3                           & 0:23,8                                          & 11,7\%                         \\
+        gcc       & 50:28,0                          & 60:53,5                                         & 20,6\%                         \\
         \bottomrule
     \end{tabular}
     \caption{Сравнение времени сборки проектов}
     \label{tab:build_time}
 \end{table}
 
-Согласно результатам тестирования, замедление не зависит от объёма проекта и составляет в среднем 12\%. Санитайзер не производит значительного замедления времени сборки, что позволяет использовать его для проектов любого размера.
+Согласно результатам тестирования, замедление сборки составляет от 12\% до 20\%, что является хорошим результатом для инструментов такого класса. Например, Thread Sanitizer, предназначенный для обнаружения гонок в коде на C и C\texttt{++}, замедляет программу в 5-15 раз \cite{thread-sanitizer-docs}, а Address Sanitizer, который считается быстрым санитайзером, замедляет программу в среднем в 2 раза \cite{address-sanitizer-docs}.
 
-% TODO:
-% - Сказать про то что надо хранить и PID и эпоху
+Наибольшее замедление в 20.6\% было выявлено при сборке gcc. Это связано с тем, что сложность поиска гонок зависит от глубины вложенности Make-процессов (см. \ref{subsec:nested-make}). В проекте gcc широко используются вложенные Make. При помощи информации из трассы сборки удалось установить, что при используемой конфигурации глубина вложенности достигает восьми. Пример такой цепочки указан ниже:
+
+\begin{enumerate}
+    \item \texttt{make (in .)}
+    \item \texttt{make stage3-bubble (in .)}
+    \item \texttt{make all-stage1 (in .)}
+    \item \texttt{make (in ./x86\_64-pc-linux-gnu/libstdc++-v3/)}
+    \item \texttt{make all-recursive (in ./x86\_64-pc-linux-gnu/libstdc++-v3/)}
+    \item \texttt{make all (in ./x86\_64-pc-linux-gnu/libstdc++-v3/)}
+    \item \texttt{make (in ./x86\_64-pc-linux-gnu/libstdc++-v3/src)}
+    \item \texttt{make all (in: x86\_64-pc-linux-gnu/libstdc++-v3/src/c++98/)}
+\end{enumerate}
+
+Всего такой глубины достигли 21 из 300 процессов Make. Любая операция с файлом из последней цели проверяется на корректность в каждом из этих восьми Make-процессов, что и приводит к замедлению.
+
+Чтение трассы сборки gcc занимает у санитайзера всего 2:30, что в 20 раз быстрее обычной пересборки проекта.
