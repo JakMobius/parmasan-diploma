@@ -1,0 +1,23 @@
+\begin{tikzpicture}
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c11) at (0, 0) {C};
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c21) at (1.5, 0) {C};
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (n31) at (3.5, 0) {N};
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c41) at (5.5, 0) {C};
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c51) at (7, 0) {C};
+
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c12) at (0, 2) {C};
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c22) at (1.5, 2) {C};
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c32) at (3.5, 2) {C};
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c42) at (5.5, 2) {C};
+    \node[style=draw, minimum width=1cm, minimum height=1cm] (c52) at (7, 2) {C};
+
+    \draw[->, shorten >=2pt, shorten <=2pt] (c11) -- (c21);
+    \draw[->, shorten >=4pt, shorten <=4pt] (c21) to[out=320,in=220] (n31);
+    \draw[->, shorten >=4pt, shorten <=4pt] (n31) to[out=40,in=140] (c41);
+    \draw[->, shorten >=2pt, shorten <=2pt] (c41) -- (c51);
+
+    \draw[->, shorten >=2pt, shorten <=2pt] (c12) -- (c22);
+    \draw[->, shorten >=2pt, shorten <=2pt] (c22) -- (c32);
+    \draw[->, shorten >=2pt, shorten <=2pt] (c32) -- (c42);
+    \draw[->, shorten >=2pt, shorten <=2pt] (c42) -- (c52);
+\end{tikzpicture}

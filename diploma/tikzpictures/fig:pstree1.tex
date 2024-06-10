@@ -1,0 +1,21 @@
+\begin{tikzpicture}
+    \node[style=draw, minimum width=4cm] (compile) at (0,2.25) {Цель \texttt{compile}};
+    \node[style=draw, minimum width=4cm] (link) at (0,0) {Цель \texttt{link}};
+
+    \node[style=draw] (gcc3) at (5.5,0) {\parbox{4.5cm}{\centering \texttt{gcc main.o lib.o} \\ \footnotesize pid=1023}};
+    \node[style=draw] (gcc1) at (5.5,3) {\parbox{4.5cm}{\centering \texttt{gcc main.cpp} \\ \footnotesize pid=1015}};
+    \node[style=draw] (gcc2) at (5.5,1.5) {\parbox{4.5cm}{\centering \texttt{gcc lib.cpp} \\ \footnotesize pid=1018}};
+
+    \node[style=draw] (ld) at (11,0) {\parbox{2.5cm}{\centering \texttt{ld} \\ \footnotesize pid=1025}};
+    \node[style=draw] (as1) at (11,3) {\parbox{2.5cm}{\centering \texttt{as} \\ \footnotesize pid=1017}};
+    \node[style=draw] (as2) at (11,1.5) {\parbox{2.5cm}{\centering \texttt{as} \\ \footnotesize pid=1020}};
+
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (compile) -- (gcc1);
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (compile) -- (gcc2);
+
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc1) -- (as1) node[midway, above] {vfork};
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc2) -- (as2) node[midway, above] {vfork};
+
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (link) -- (gcc3);
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc3) -- (ld) node[midway, above] {vfork};
+\end{tikzpicture}

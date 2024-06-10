@@ -1,0 +1,19 @@
+\begin{tikzpicture}
+    \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (0, -0.25) {write};
+    \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (3, -0.25) {read};
+    \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (6, -0.25) {read};
+
+    \node[font=\scriptsize] at (1.5, -1.4) {Конфликтуют};
+    \node[font=\scriptsize] at (4.5, -1.4) {Не конфликтуют};
+
+    \draw (0.9,-0.75) -- (0.9,-1);
+    \draw (0.9,-1) -- (2.1,-1);
+    \draw (2.1,-1) -- (2.1,-0.75);
+
+    \draw (3.9,-0.75) -- (3.9,-1);
+    \draw[dashed] (3.9,-1) -- (5.1,-1);
+    \draw (5.1,-1) -- (5.1,-0.75);
+
+    \node[font=\itshape] (time) at (8.3, -1.5) {$\tau$};
+    \draw[line width=0.7pt, ->] (7, -1.5) to (8, -1.5);
+\end{tikzpicture}

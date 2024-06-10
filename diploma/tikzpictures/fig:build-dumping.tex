@@ -1,0 +1,32 @@
+\begin{tikzpicture}
+    \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan) at (5, -2.5) {Санитайзер в режиме чтения лога};
+    \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (trace) at (-1, -2.5) {Лог};
+    \node[style=draw, rounded corners, minimum width=3cm, inner ysep=6pt] (logger) at (-1, 0) {Логгер};
+    \node[gray, style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (tracer) at (3.2, 0) {Трассировщик};
+    \node[gray, style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {remake*};
+    \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child1) at (11, 1) {gcc};
+    \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
+    \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child3) at (11, -1) {...};
+
+    \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (logger) -- (tracer);
+    \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
+    \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
+    \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
+    \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
+
+    \draw[gray, line width=1pt, shorten <=2pt] (10, 0.75) arc (90:180:0.5);
+    \draw[gray, line width=1pt, shorten <=2pt] (10, -0.25) arc (90:180:0.5);
+    \draw[gray, line width=1pt] (9.5, 0.25) -- (9.5, -0.75) arc (0:-90:0.5);
+    \draw[gray, line width=1pt] (7, -0.5) -- (7, -0.75) arc (0:-90:0.5);
+    \draw[gray, line width=1pt, shorten <=2pt, ->] (10, -1.25) -- (4, -1.25) arc (270:180:0.5) -- (3.5, -0.5);
+    \node[gray, font=\small] at (5.25, -1.0) {События ptrace};
+
+    \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (4.5, 0.5) arc (0:90:0.5) -- (-1, 1.0) arc (90:180:0.5);
+    \node[gray, font=\small] at (1.8, 1.2) {События над файлами и процессами};
+
+    \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (7.5, 0.5) -- (7.5, 1.0) arc (0:90:0.5) -- (-1.5, 1.5) arc (90:180:0.5) -- (-2.0, 0.5);
+    \node[gray, font=\small] at (3, 1.7) {Соответствие процессов целям и граф зависимостей};
+
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (trace) -- (parmasan);
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (logger) -- (trace);
+\end{tikzpicture}

@@ -26,41 +26,9 @@
 
 \begin{figure}[H]
 	\centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=1.5cm] (libcpp) at (2,1.5) {lib.cpp};
-        \node[style=draw, minimum width=1.5cm] (libo) at (4,1.5) {lib.o};
-        \node[style=draw, minimum width=1.5cm] (liba) at (6,1.5) {lib.a};
-
-        \node[style=draw, minimum width=3cm] (appcpp) at (2.75,0) {app.cpp};
-        \node[style=draw, minimum width=3cm] (appo) at (6.25,0) {app.o};
-        \node[style=draw, minimum width=3cm] (app) at (9.75,0) {app};
-
-        \node[text width=5cm] at (10.5,1.1) {
-            \texttt{app} зависит от \texttt{lib.a}, но \textbf{не дожидается сборки}
-        };
-
-        % liba -> app
-        \draw[gray, dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-        (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
-
-        % Common
-        \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
-        \node at (0,1.5) {Поток 1:};
-        \node at (0,0) {Поток 2:};
-
-        % appo -> app
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-        ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
-
-        % Time text and arrow
-        \node[font=\itshape] (time) at (11.4, -1.16) {$\tau$};
-        \draw[line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
-    \end{tikzpicture}
+    \input{tikzpictures/fig:project-sample}
     \caption{Процесс сборки проекта с состоянияем гонки в схеме сборки}
+    \label{fig:project-sample}
 \end{figure}
 
 Выше изображен процесс сборки проекта. В нём исходный код приложения может собираться параллельно с библиотекой, которую он использует. Это позволяет ускорить сборку всего проекта. Однако в этой схеме не указано, что перед компоновкой всего приложения необходимо дождаться, пока библиотека будет готова.
@@ -69,41 +37,9 @@
 
 \begin{figure}[H]
 	\centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
-        \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
-        \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
-
-        \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
-        \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
-        \node[style=draw, minimum width=2cm] (app) at (7.25,0) {app};
-        \node[style=draw, minimum width=2cm] (ошибка) at (9.75,0) {ошибка};
-
-        \node[style=draw, dashed, minimum width=4cm] (error) at (3.5,0.75) {lib.a еще не готова};
-
-        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-        (error) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (app) -- (ошибка);
-
-        % Common
-        \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
-        \node at (0,1.5) {Поток 1:};
-        \node at (0,0) {Поток 2:};
-
-        % appo -> app
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-        ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
-
-        % Time text and arrow
-        \node[font=\itshape] (time) at (11.4, -1.16) {$\tau$};
-        \draw[line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
-    \end{tikzpicture}
-    \caption{Процесс сборки проекта с состоянияем гонки в схеме сборки}
+    \input{tikzpictures/fig:project-sample-error}
+    \caption{Ошибка сборки, вызванная отсутствием зависимости}
+    \label{fig:project-sample-error}
 \end{figure}
 
 Такие ошибки можно исправить тремя способами:
@@ -116,42 +52,9 @@
 
 \begin{figure}[H]
 	\centering
-    \begin{tikzpicture}
-        % Frame 3
-        \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
-        \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
-        \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
-
-        \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
-        \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
-        \node[style=draw, minimum width=2cm] (app) at (10.8,0) {app};
-
-        \node[text width=4.5cm] at (12.5,1.1) {
-            \small{Поток 2 ждёт сборки \texttt{lib.a} перед сборкой \texttt{app}}
-        };
-
-        % liba -> app
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-        (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
-
-        % Common
-        \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
-        \node at (0,1.5) {Поток 1:};
-        \node at (0,0) {Поток 2:};
-
-        % appo -> app
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
-        ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
-
-        % Time text and arrow
-        \node[font=\itshape] (time) at (11.4, -1.16) {$\tau$};
-        \draw[line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
-    \end{tikzpicture}
+    \input{tikzpictures/fig:project-sample-fix}
     \caption{Исправленная схема сборки без состояния гонки}
+    \label{fig:project-sample-fix}
 \end{figure}
 
 Настоящие схемы сборки, как правило, выглядят значительно сложнее, и найти в них недостающую зависимость становится трудно. В связи с этим, такие проблемы в проектах могут долго оставаться неисправленными. Подтверждение этому можно найти на форуме Gentoo, где перечислены открытые обсуждения, связанные с ошибками при параллельной сборке пакетов для этой системы~\cite{gentoo-bugzilla}.

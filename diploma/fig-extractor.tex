@@ -1,0 +1,37 @@
+\documentclass[a4paper, openany, 12pt]{article}
+
+%% подключаем стандарт библиографии
+\bibliographystyle{gost71u}
+
+%% для "Abstract" в классе book
+% \newenvironment{abstract}{}{}
+\usepackage{abstract}
+
+%% подключаем преамбулу: в ней содержится подключение всех необходимых пакетов
+\input{include/preambule.tex}
+
+%% отключаем номера страниц
+\pagenumbering{gobble}
+\usepackage{xparse}
+
+\ExplSyntaxOn
+
+\NewDocumentCommand{\getenv}{om}
+{
+    \sys_get_shell:nnN { kpsewhich ~ --var-value ~ #2 } { } \l_tmpa_tl
+    \tl_trim_spaces:N \l_tmpa_tl
+    \IfNoValueTF { #1 }
+    {
+        \tl_use:N \l_tmpa_tl
+    }
+    {
+        \tl_set_eq:NN #1 \l_tmpa_tl
+    }
+}
+
+\ExplSyntaxOff
+
+\begin{document}
+    \getenv[\image]{INPUT_IMAGE}
+    \input{\image}
+\end{document}

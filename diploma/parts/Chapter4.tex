@@ -10,34 +10,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (sanitizer) at (-1, 0) {Санитайзер};
-        \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (tracer) at (3.2, 0) {Трассировщик};
-        \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {remake};
-        \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child1) at (11, 1) {gcc};
-        \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
-        \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child3) at (11, -1) {...};
-
-        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (sanitizer) -- (tracer);
-        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
-        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
-        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
-        \draw[dashed, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
-
-        \draw[line width=1pt, shorten <=2pt] (10, 0.75) arc (90:180:0.5);
-        \draw[line width=1pt, shorten <=2pt] (10, -0.25) arc (90:180:0.5);
-        \draw[line width=1pt] (9.5, 0.25) -- (9.5, -0.75) arc (0:-90:0.5);
-        \draw[line width=1pt] (7, -0.5) -- (7, -0.75) arc (0:-90:0.5);
-        \draw[line width=1pt, shorten <=2pt, ->] (10, -1.25) -- (4, -1.25) arc (270:180:0.5) -- (3.5, -0.5);
-        \node[font=\footnotesize] at (5.25, -1.0) {События ptrace};
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (4.5, 0.5) arc (0:90:0.5) -- (-1, 1.0) arc (90:180:0.5);
-        \node[font=\footnotesize] at (1.8, 1.2) {События над файлами и процессами};
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (7.5, 0.5) -- (7.5, 1.0) arc (0:90:0.5) -- (-1.5, 1.5) arc (90:180:0.5) -- (-2.0, 0.5);
-        \node[font=\footnotesize] at (3, 1.7) {Соответствие процессов целям и граф зависимостей};
-    \end{tikzpicture}
-
+    \input{tikzpictures/fig:parmasan-processes}
     \caption{Схема межпроцессного взаимодействия при сборке под санитайзером}
     \label{fig:parmasan-processes}
 \end{figure}
@@ -51,6 +24,8 @@
 Поскольку трассировщик является сравнительно тонкой обёрткой над системным вызовом \texttt{ptrace}, он был написан на языке Си. Для санитайзера, как для более сложного проекта, был выбран язык C\texttt{++}.
 
 \subsection{Построение дерева процессов}
+\label{subsec:pstree}
+
 Информация о процессах приходит санитайзеру из двух источников. Первым трассировщик сообщает о создании нового процесса путём отслеживания системных вызовов \texttt{clone}, \texttt{spawn} и \texttt{fork}. Если процесс был порождён процессом remake, он должен передать информацию о цели, которой этот процесс соответствует. Это позволит санитайзеру соотнести операции над файлами с целями сборки (см.~\ref{subsubsec:link-ops-with-targets}).
 
 По умолчанию трассировщик останавливает все новые процессы на первой инструкции. Это необходимо для того, чтобы успеть настроить перехват системных вызовов и передать санитайзеру информацию о созданном процессе раньше, чем тот начнёт совершать какие-либо действия. Когда санитайзер получает сообщение о создании нового процесса, он добавляет его в общее дерево и отправляет подтверждение трассировщику. Дождавшись ответа, трассировщик позволяет процессу начать работу.
@@ -63,7 +38,7 @@
 
 \subsection{Отслеживание операций над файлами}
 
-\begin{figure}[H]
+\begin{table}[H]
     \centering
     \begin{tabular}{>{\raggedright\arraybackslash}m{4cm}>{\raggedright\arraybackslash}m{8cm}}
         \toprule
@@ -79,7 +54,7 @@
     \end{tabular}
     \caption{Системные вызовы над файлами, отслеживаемые трассировщиком}
     \label{tab:syscalls}
-\end{figure}
+\end{table}
 
 Трассировщик перехватывает операции над файлами и сообщает о них санитайзеру. На таблице~\ref{tab:syscalls} перечислены системные вызовы, соответствующие разным типам событий для санитайзера.
 
@@ -100,31 +75,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node (tracer) at (3.8, 0) {...};
-        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (make) at (7, 0) {Make~\#1};
-        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child1) at (11, 1) {ld};
-        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
-        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (child3) at (11, -1) {Make~\#2};
-
-        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child31) at (15, 0) {gcc};
-        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child32) at (15, -1) {rm};
-        \node[minimum width=2.5cm, minimum height=0.8cm, gray, style=draw, rounded corners] (child33) at (15, -2) {...};
-
-        \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child3) to[in=180, out=0] (child31);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child3) to[in=180, out=0] (child32);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child3) to[in=180, out=0] (child33);
-
-        % \node[gray, font=\small] (text1) at (6.7, -2) {События ptrace};
-        % \node[gray, font=\small] (text1) at (1, -2) {События над файлами и процессами};
-        % \node[gray, font=\small] (text2) at (3.5, 1.8) {Соответствие процессов целям и граф зависимостей};
-    \end{tikzpicture}
-
+    \input{tikzpictures/fig:nested-make-pstree}
     \caption{Дерево процессов при использовании вложенных Make}
     \label{fig:nested-make-pstree}
 \end{figure}
@@ -133,30 +84,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node (tracer) at (3.8, 0) {...};
-        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (make) at (7, 0) {Make~\#1};
-        \node[minimum width=2.5cm, minimum height=0.8cm, gray] (child3) at (11, 2.4) {...};
-        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (child2) at (11, 1.2) {ld};
-        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (child1) at (11, 0) {Make~\#2};
-
-        \node[minimum width=2.5cm, minimum height=0.8cm, gray] (child12) at (15, 1.2) {...};
-        \node[minimum width=2.5cm, minimum height=0.8cm, style=draw, rounded corners] (child11) at (15, 0) {gcc};
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer.east) -- (make.west);
-
-        \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make.east) -- (child3.west);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make.east) -- (child2.west) node[font=\scriptsize, midway, sloped, below] {a.out};
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make.east) -- (child1.west) node[font=\scriptsize, midway, sloped, below] {libfoo};
-
-        \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child1.east) -- (child12.west);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (child1.east) -- (child11.west) node[font=\scriptsize, midway, sloped, below] {libfoo.a};
-
-        % \node[gray, font=\small] (text1) at (6.7, -2) {События ptrace};
-        % \node[gray, font=\small] (text1) at (1, -2) {События над файлами и процессами};
-        % \node[gray, font=\small] (text2) at (3.5, 1.8) {Соответствие процессов целям и граф зависимостей};
-    \end{tikzpicture}
-
+    \input{tikzpictures/fig:nested-make-pstree-2}
     \caption{Дерево процессов с целями при использовании вложенных Make}
     \label{fig:nested-make-pstree-2}
 \end{figure}
@@ -167,24 +95,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[draw, minimum width=6.4cm, minimum height=1cm] at (4, 0) {\texttt{libfoo}};
-        \node[draw, minimum width=2.0cm, minimum height=1cm] at (5.8, 1.1) {\texttt{libfoo.a}};
-        \node[gray, draw, minimum width=3.2cm, minimum height=1cm] at (2.8, 1.1) {...};
-        \node[draw, minimum width=2cm, minimum height=1cm] at (8.6, 0) {\texttt{a.out}};
-
-%        \draw[dashed] (6.8, 1.6) -- (6.8, 3.0);
-%        \draw[dashed] (7.2, 0.5) -- (7.2, 2.0);
-%        \draw[dashed] (7.6, 0.5) -- (7.6, 1.0);
-
-%        \node[font=\small, minimum width=6cm, text width=6cm] at (10, 3.0) {Завершение работы вложенной цели \texttt{libfoo.a}};
-%        \node[font=\small, minimum width=6cm, text width=6cm] at (10.4, 2.0) {Завершение работы внешней цели \texttt{libfoo}};
-%        \node[font=\small, minimum width=6cm, text width=6cm] at (10.8, 1.0) {Запуск целей, зависящих от \texttt{libfoo}};
-
-        \node[font=\itshape] (time) at (11.4, -1.16) {$\tau$};
-        \draw[line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
-    \end{tikzpicture}
-
+    \input{tikzpictures/fig:nested-make-timeline.tex}
     \caption{Временная линия сборки при использовании вложенных Make}
     \label{fig:nested-make-timeline}
 \end{figure}
@@ -224,75 +135,15 @@
 Среди проектов, выбранных для эксперимента, gcc является самым крупным. При сборке небольших проектов средняя высота подъёма меньше в сотни раз: на проекте Vim она составляет 0.004, а на strace --- 0.0028. Это указывает на то, что наиболее оптимальным алгоритмом будет метод линейного подъёма.
 
 \subsection{Протокол взаимодействия}
-\label{subsec:pstree}
+\label{subsec:socket-protocol}
 
 Архитектура инструмента предполагает обмен данными между процессами посредством сокета. Ниже представлен пример сообщения, которым трассировщик сообщает санитайзеру, что определённый процесс открыл файл в режиме чтения.
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        % symbol width = 10.2 / 47 = 0.217
-        \node at (0, 0) {\texttt{ASYNC READ 16 /lib64/libc.so.6 1005 15 646356 7}};
-
-        % ASYNC:
-        % -5.1 + 0.217 * 0 = -5.1
-        % -5.1 + 0.217 * 5 = -4.015
-        \draw[line width=0.7pt] (-5.1, -0.25) -- (-4.0375, -0.25);
-        \draw[line width=0.7pt] (-5.1, -0.25) -- (-5.1, -4.5);
-        \node[align=flush left, font=\footnotesize, minimum width=4cm, text width=4cm] at (-3.2, -5.1) {Флаг синхронности сообщения.};
-
-
-        % READ:
-        % -5.1 + 0.217 * 6 = -3.798
-        % -5.1 + 0.217 * 10 = -2.93
-        \draw[line width=0.7pt] (-3.798, -0.25) -- (-2.93, -0.25);
-        \draw[line width=0.7pt] (-3.798, -0.25) -- (-3.798, -3);
-        \node[align=flush left, font=\footnotesize, minimum width=5cm, text width=5cm] at (-1.398, -3.8) {Название события. В данном случае~--- \texttt{READ}~--- чтение файла.};
-
-        % 16:
-        % -5.1 + 0.217 * 11 = -2.713
-        % -5.1 + 0.217 * 13 = -2.279
-        \draw[line width=0.7pt] (-2.713, -0.25) -- (-2.279, -0.25);
-        \draw[line width=0.7pt] (-2.713, -0.25) -- (-2.713, -2);
-        \node[align=flush left, font=\footnotesize, minimum width=4cm, text width=4cm] at (-0.813, -2.6) {Длина строки, следующей далее.};
-
-        % /lib64/libc.so.6:
-        % -5.1 + 0.217 * 14 = -2.062
-        % -5.1 + 0.217 * 30 = 1.41
-        \draw[line width=0.7pt] (-2.062, -0.25) -- (1.41, -0.25);
-        \draw[line width=0.7pt] (-2.062, -0.25) -- (-2.062, -0.5);
-        \node[align=flush left, font=\footnotesize, minimum width=3cm, text width=3cm] at (-0.662, -1.3) {Путь, по которому процесс обратился к файлу.};
-
-        % 1005:
-        % -5.1 + 0.217 * 31 = 1.627
-        % -5.1 + 0.217 * 35 = 2.495
-        \draw[line width=0.7pt] (1.627, -0.25) -- (2.495, -0.25);
-        \draw[line width=0.7pt] (1.627, -0.25) -- (1.627, -4);
-        \node[align=flush left, font=\footnotesize, minimum width=6cm, text width=6cm] at (4.527, -4.6) {pid процесса, производящего доступ к файлу.};
-
-        % 15:
-        % -5.1 + 0.217 * 36 = 2.712
-        % -5.1 + 0.217 * 38 = 3.146
-        \draw[line width=0.7pt] (2.712, -0.25) -- (3.146, -0.25);
-        \draw[line width=0.7pt] (2.712, -0.25) -- (2.712, -3);
-        \node[align=flush left, font=\footnotesize, minimum width=4cm, text width=4cm] at (4.612, -3.6) {Device number файловой системы.};
-
-        % 646356:
-        % -5.1 + 0.217 * 39 = 3.363
-        % -5.1 + 0.217 * 45 = 4.665
-        \draw[line width=0.7pt] (3.363, -0.25) -- (4.665, -0.25);
-        \draw[line width=0.7pt] (3.363, -0.25) -- (3.363, -2);
-        \node[align=flush left, font=\footnotesize, minimum width=4cm, text width=4cm] at (5.263, -2.6) {Номер inode прочитанного файла.};
-
-        % 7:
-        % -5.1 + 0.217 * 46 = 4.882
-        % -5.1 + 0.217 * 47 = 5.099
-        \draw[line width=0.7pt] (4.882, -0.25) -- (5.099, -0.25);
-        \draw[line width=0.7pt] (4.882, -0.25) -- (4.882, -0.5);
-        \node[align=flush left, font=\footnotesize, minimum width=3cm, text width=3cm] at (6.282, -1.3) {Код возврата системного вызова \texttt{open}.};
-    \end{tikzpicture}
-
+    \input{tikzpictures/fig:parmasan-message-example.tex}
     \caption{Пример сообщения, передаваемого санитайзеру трассировщиком}
+    \label{fig:parmasan-message-example}
 \end{figure}
 
 Любое сообщение, отправляемое санитайзеру, должно начинаться с флага синхронности (слова \texttt{SYNC} или \texttt{ASYNC}). Он указывает, ожидает ли отправляющая сторона ответное сообщение, как подтверждение того что событие было обработано. Пункт~\ref{subsec:pstree} содержит примеры некоторых типов сообщений, требующих подобной синхронизации.
@@ -304,11 +155,11 @@
 \begin{enumerate}
     \item \texttt{INIT TRACER}~--- инициализирующее сообщение.
     \item \texttt{CHILD <pid> <ppid> <cmdline>}~--- Сообщает о создании нового процесса в дереве, или о том, что существующий процесс сменил свою \texttt{cmdline}, вызвав \texttt{exec}. Это сообщение всегда является синхронным, см.~\ref{subsec:pstree}.
-    \item \texttt{READ <}Путь к файлу\texttt{> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- событие открытия процессом файла на чтение.
-    \item \texttt{WRITE <}Путь к файлу\texttt{> <pid> <devnum> <inum> <}код возврата\texttt{>}
+    \item \texttt{READ <path> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- событие открытия процессом файла на чтение.
+    \item \texttt{WRITE <path> <pid> <devnum> <inum> <}код возврата\texttt{>}
     ~--- событие открытия процессом файла на запись.
-    \item \texttt{UNLINK <}Путь к файлу\texttt{> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- событие удаления пути (directory entry)
-    \item \texttt{INODE\_UNLINK <}Путь к файлу\texttt{> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- дублирует сообщение \texttt{UNLINK} в случае, если удалённый путь был последней жёсткой ссылкой на свою inode.
+    \item \texttt{UNLINK <path> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- событие удаления пути (directory entry)
+    \item \texttt{INODE\_UNLINK <path> <pid> <devnum> <inum> <}код возврата\texttt{>}~--- дублирует сообщение \texttt{UNLINK} в случае, если удалённый путь был последней жёсткой ссылкой на свою inode.
     \item \texttt{DIE <pid>}~--- сообщает о завершении работы процесса с указанным pid. Если свою работу завершает сам трассировщик, он отправляет это сообщение с собственным pid. В этом случае сообщение должно быть синхронным. Это будет гарантировать, что санитайзер успеет обработать все предыдущие сообщения от трассировщика прежде, чем получит сигнал \texttt{SIGCHLD} и остановится.
 \end{enumerate}
 
@@ -354,39 +205,7 @@
 
     \begin{figure}[H]
         \centering
-        \begin{tikzpicture}
-            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (parmasan) at (5, -2.5) {Санитайзер в режиме чтения лога};
-            \node[style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (trace) at (-1, -2.5) {Лог};
-            \node[style=draw, rounded corners, minimum width=3cm, inner ysep=6pt] (logger) at (-1, 0) {Логгер};
-            \node[gray, style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (tracer) at (3.2, 0) {Трассировщик};
-            \node[gray, style=draw, rounded corners, inner xsep=10pt, inner ysep=6pt] (make) at (7, 0) {remake*};
-            \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child1) at (11, 1) {gcc};
-            \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child2) at (11, 0) {mkdir};
-            \node[minimum width=2cm, minimum height=0.7cm, gray, style=draw, rounded corners] (child3) at (11, -1) {...};
-
-            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (logger) -- (tracer);
-            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (tracer) -- (make);
-            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child1);
-            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child2);
-            \draw[dashed, gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (make) to[in=180, out=0] (child3);
-
-            \draw[gray, line width=1pt, shorten <=2pt] (10, 0.75) arc (90:180:0.5);
-            \draw[gray, line width=1pt, shorten <=2pt] (10, -0.25) arc (90:180:0.5);
-            \draw[gray, line width=1pt] (9.5, 0.25) -- (9.5, -0.75) arc (0:-90:0.5);
-            \draw[gray, line width=1pt] (7, -0.5) -- (7, -0.75) arc (0:-90:0.5);
-            \draw[gray, line width=1pt, shorten <=2pt, ->] (10, -1.25) -- (4, -1.25) arc (270:180:0.5) -- (3.5, -0.5);
-            \node[gray, font=\small] at (5.25, -1.0) {События ptrace};
-
-            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (4.5, 0.5) arc (0:90:0.5) -- (-1, 1.0) arc (90:180:0.5);
-            \node[gray, font=\small] at (1.8, 1.2) {События над файлами и процессами};
-
-            \draw[gray, line width=1pt, shorten >=2pt, shorten <=2pt, ->] (7.5, 0.5) -- (7.5, 1.0) arc (0:90:0.5) -- (-1.5, 1.5) arc (90:180:0.5) -- (-2.0, 0.5);
-            \node[gray, font=\small] at (3, 1.7) {Соответствие процессов целям и граф зависимостей};
-
-            \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (trace) -- (parmasan);
-            \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (logger) -- (trace);
-        \end{tikzpicture}
-
+        \input{tikzpictures/fig:build-dumping}
         \caption{Запись и воспроизведение лога сборки}
         \label{fig:build-dumping}
     \end{figure}

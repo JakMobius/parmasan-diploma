@@ -1,0 +1,15 @@
+\begin{tikzpicture}[every node/.style = draw]
+    \node[inner xsep=7pt] (link) at (0,0) {link};
+    \node[inner xsep=7pt] (compile) at (0,1.2) {compile};
+    \node[inner xsep=7pt] (all) at (3,0.6) {all};
+
+
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, <->] (link) -- (compile);
+    \draw[line width=1pt, -] (-0.2,0.5) -- (0.2,0.7);
+    \draw[line width=1pt, -] (0.2,0.5) -- (-0.2,0.7);
+
+    \graph {
+        (link) ->[line width=1pt, shorten >=2pt, shorten <=2pt] (all);
+        (compile) ->[line width=1pt, shorten >=2pt, shorten <=2pt] (all);
+    };
+\end{tikzpicture}

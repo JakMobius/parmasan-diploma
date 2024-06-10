@@ -1,0 +1,35 @@
+\begin{tikzpicture}
+    % Frame 3
+    \node[style=draw, minimum width=2.2cm] (libcpp) at (2.35,1.5) {lib.cpp};
+    \node[style=draw, minimum width=2.2cm] (libo) at (5.2,1.5) {lib.o};
+    \node[style=draw, minimum width=2.2cm] (liba) at (8.05,1.5) {lib.a};
+
+    \node[style=draw, minimum width=2cm] (appcpp) at (2.25,0) {app.cpp};
+    \node[style=draw, minimum width=2cm] (appo) at (4.75,0) {app.o};
+    \node[style=draw, minimum width=2cm] (app) at (10.8,0) {app};
+
+    \node[text width=4.5cm] at (12.5,1.1) {
+        \small{Поток 2 ждёт сборки \texttt{lib.a} перед сборкой \texttt{app}}
+    };
+
+    % liba -> app
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+    (liba) to[out=0, in=180] ($(app.west) + (0, 0.12)$);
+
+    % Common
+    \node[minimum width=16cm, minimum height=3.5cm] (sizer) at (6.5,0.3) {};
+    \node at (0,1.5) {Поток 1:};
+    \node at (0,0) {Поток 2:};
+
+    % appo -> app
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->]
+    ($(appo.east) + (0,-0.12)$) -- ($(app.west) + (0,-0.12)$);
+
+    % Time text and arrow
+    \node[font=\itshape] (time) at (11.4, -1.16) {$\tau$};
+    \draw[line width=0.7pt, ->] (0, -1.16) to (11, -1.16);
+
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libcpp) -- (libo);
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (libo) -- (liba);
+    \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (appcpp) -- (appo);
+\end{tikzpicture}

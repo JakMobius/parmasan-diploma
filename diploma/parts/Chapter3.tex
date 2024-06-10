@@ -48,53 +48,20 @@
 
 \begin{figure}[H]
 	\centering
-	\begin{tikzpicture}
-        \node[style=draw, minimum width=4cm] (compile) at (0,2.25) {Цель \texttt{compile}};
-        \node[style=draw, minimum width=4cm] (link) at (0,0) {Цель \texttt{link}};
-
-        \node[style=draw] (gcc3) at (5.5,0) {\parbox{4.5cm}{\centering \texttt{gcc main.o lib.o} \\ \footnotesize pid=1023}};
-        \node[style=draw] (gcc1) at (5.5,3) {\parbox{4.5cm}{\centering \texttt{gcc main.cpp} \\ \footnotesize pid=1015}};
-        \node[style=draw] (gcc2) at (5.5,1.5) {\parbox{4.5cm}{\centering \texttt{gcc lib.cpp} \\ \footnotesize pid=1018}};
-
-        \node[style=draw] (ld) at (11,0) {\parbox{2.5cm}{\centering \texttt{ld} \\ \footnotesize pid=1025}};
-        \node[style=draw] (as1) at (11,3) {\parbox{2.5cm}{\centering \texttt{as} \\ \footnotesize pid=1017}};
-        \node[style=draw] (as2) at (11,1.5) {\parbox{2.5cm}{\centering \texttt{as} \\ \footnotesize pid=1020}};
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (compile) -- (gcc1);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (compile) -- (gcc2);
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc1) -- (as1) node[midway, above] {vfork};
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc2) -- (as2) node[midway, above] {vfork};
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (link) -- (gcc3);
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, ->] (gcc3) -- (ld) node[midway, above] {vfork};
-    \end{tikzpicture}
+    \input{tikzpictures/fig:pstree1}
     \caption{Дерево процессов при сборке Makefile из листинга~\ref{lst:race-condition-1}}
     \label{fig:pstree1}
 \end{figure}
 
 Схему выше (кроме названий процессов) можно построить на данных из листинга~\ref{lst:log-detailed}. В ней, как и во фрагменте лога, опущены процессы \texttt{cc1}, поскольку они не производят доступов к интересующим нас объектным файлам.
 
-Рассмотрим процессы 1020 и 1025. Согласно схеме~\ref{fig:pstree1}, им соответствуют цели \texttt{compile} и \texttt{link}. Из фрагмента лога в листинге~\ref{lst:log-detailed} можно установить, что процесс 1020 производит запись в файл \texttt{lib.o}, а процесс 1025~--- чтение того же файла. Запись и чтение нельзя менять местами, поскольку результат чтения может поменяться. Следовательно, процессы 1020 и 1025 должны запускаться строго друг за другом. Иными словами, между соответствующими целями~--- \texttt{compile} и \texttt{link}~--- должна быть зависимость. Проверим это, обратившись к графу зависимостей схемы.
+Рассмотрим процессы 1020 и 1025. Согласно рис.~\ref{fig:pstree1}, им соответствуют цели \texttt{compile} и \texttt{link}. Из фрагмента лога в листинге~\ref{lst:log-detailed} можно установить, что процесс 1020 производит запись в файл \texttt{lib.o}, а процесс 1025~--- чтение того же файла. Запись и чтение нельзя менять местами, поскольку результат чтения может поменяться. Следовательно, процессы 1020 и 1025 должны запускаться строго друг за другом. Иными словами, между соответствующими целями~--- \texttt{compile} и \texttt{link}~--- должна быть зависимость. Проверим это, обратившись к графу зависимостей схемы.
 
 \begin{figure}[H]
 	\centering
-	\begin{tikzpicture}[every node/.style = draw]
-        \node[inner xsep=7pt] (link) at (0,0) {link};
-        \node[inner xsep=7pt] (compile) at (0,1.2) {compile};
-        \node[inner xsep=7pt] (all) at (3,0.6) {all};
-
-
-        \draw[line width=1pt, shorten >=2pt, shorten <=2pt, <->] (link) -- (compile);
-        \draw[line width=1pt, -] (-0.2,0.5) -- (0.2,0.7);
-        \draw[line width=1pt, -] (0.2,0.5) -- (-0.2,0.7);
-
-        \graph {
-            (link) ->[line width=1pt, shorten >=2pt, shorten <=2pt] (all);
-            (compile) ->[line width=1pt, shorten >=2pt, shorten <=2pt] (all);
-        };
-    \end{tikzpicture}
+	\input{tikzpictures/fig:dependency-graph.tex}
     \caption{Граф зависимостей Makefile из листинга~\ref{lst:race-condition-1}}
+    \label{fig:dependency-graph}
 \end{figure}
 
 Легко убедиться в том, что схема сборки из примера не содержит такой зависимости: между целями \texttt{link} и \texttt{compile} нет ориентированного пути. Соответственно, в схеме сборки присутствует гонка. Теперь можно составить первый вариант алгоритма автоматического поиска состояний подобных гонок:
@@ -166,28 +133,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture};
-        \node at (3.5,4) {Процессы:};
-        \node at (12,4) {Файловая система:};
-
-        \node[style=draw, minimum width=5cm, minimum height=0.9cm] (mkdir) at (3.5,3) {\texttt{mkdir build}};
-        \node[style=draw, minimum width=5cm, minimum height=1.9cm] (echo) at (3.5,1.5) {\texttt{echo > build/a.out}};
-
-        \node[align=left, text width=3cm] (build) at (12.5,3) {\texttt{./build}};
-        \node[align=left, text width=3cm] (buildaout) at (12.5,1) {\texttt{./build/a.out}};
-
-        \draw[->, shorten >=4pt, shorten <=4pt] (6,3) -- (11,3);
-        \draw[-, shorten <=4pt] (6,2) -- (9,2);
-        \draw[->, shorten >=4pt] (9,2) to[in=180, out=0] (11,3);
-        \draw[->, shorten >=4pt, shorten <=4pt] (6,1) -- (11,1);
-
-        \node at (7.7, 3.3) {\texttt{write}};
-        \node at (7.7, 2.3) {\texttt{dir\_lookup}};
-        \node at (7.7, 1.3) {\texttt{write}};
-
-        \node[font=\itshape] (time) at (0.5, 0.5) {$\tau$};
-        \draw[line width=0.7pt, ->] (0.5, 4) to (0.5, 1);
-    \end{tikzpicture}
+    \input{tikzpictures/fig:dirlookup-demo}
     \caption{Операции над файлами при сборке Makefile из листинга~\ref{lst:race3}}
     \label{fig:dirlookup-demo}
 \end{figure}
@@ -196,36 +142,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture};
-        \node at (3,6) {Процессы:};
-        \node at (12,6) {Файловая система:};
-
-        \node[style=draw, minimum width=6cm, minimum height=0.9cm] (mkdir) at (3,5) {\texttt{mkdir build}};
-        \node[style=draw, minimum width=6cm, minimum height=1.9cm] (mkdir) at (3,3.5) {\texttt{mkdir build/foo}};
-        \node[style=draw, minimum width=6cm, minimum height=1.9cm] (echo) at (3,1.5) {\texttt{echo > build/foo/a.out}};
-
-        \node[align=left, text width=3cm] (build) at (12.5,5) {\texttt{./build}};
-        \node[align=left, text width=3cm] (buildfoo) at (12.5,3) {\texttt{./build/foo}};
-        \node[align=left, text width=3cm] (buildfooaout) at (12.5,1) {\texttt{./build/foo/a.out}};
-
-        \draw[->, shorten >=4pt, shorten <=4pt] (6,3) -- (11,3);
-        \draw[-, shorten <=4pt] (6,2) -- (9,2);
-        \draw[->, shorten >=4pt] (9,2) to[in=180, out=0] (11,3);
-        \draw[->, shorten >=4pt, shorten <=4pt] (6,1) -- (11,1);
-
-        \draw[->, shorten >=4pt, shorten <=4pt] (6,5) -- (11,5);
-        \draw[-, shorten <=4pt] (6,4) -- (9,4);
-        \draw[->, shorten >=4pt] (9,4) to[in=180, out=0] (11,5);
-
-        \node at (7.7, 5.3) {\texttt{write}};
-        \node at (7.7, 4.3) {\texttt{dir\_lookup}};
-        \node at (7.7, 3.3) {\texttt{write}};
-        \node at (7.7, 2.3) {\texttt{dir\_lookup}};
-        \node at (7.7, 1.3) {\texttt{write}};
-
-        \node[font=\itshape] (time) at (-0.5, 0.5) {$\tau$};
-        \draw[line width=0.7pt, ->] (-0.5, 6) to (-0.5, 1);
-    \end{tikzpicture}
+    \input{tikzpictures/fig:dirlookup-demo-deep}
     \caption{Операции над файлами для большего числа вложенных директорий}
     \label{fig:dirlookup-demo-deep}
 \end{figure}
@@ -246,34 +163,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=5cm, minimum height=0.9cm] at (3.5,3) {\texttt{lib1: mkdir build}};
-        \node[style=draw, minimum width=5cm, minimum height=0.9cm] at (3.5,2) {\texttt{lib2: mkdir build}};
-        \node[style=draw, minimum width=5cm, minimum height=1.9cm] at (3.5,0.5) {\texttt{lib2: build\_library}};
-
-        \node[align=left, text width=3cm] (build) at (12.5,3) {\texttt{./build}};
-        \node[align=left, text width=3cm] (buildaout) at (12.5,0) {\texttt{./build/lib1.a}};
-
-        \draw[-, shorten <=4pt] (6,2) -- (9,2);
-        \draw[-] (8.9,1.9) -- (9.1,2.1);
-        \draw[-] (9.1,1.9) -- (8.9,2.1);
-
-        \draw[thick, ->, shorten >=4pt, shorten <=4pt] (6,3) -- (11,3);
-        \draw[thick, -, shorten <=4pt] (6,1) -- (9,1);
-        \draw[thick, ->, shorten >=4pt] (9,1) to[in=180, out=0] (11,3);
-
-        \draw[->, shorten >=4pt, shorten <=4pt] (6,0) -- (11,0);
-
-        \node at (7.7, 2.3) {failed \texttt{write}};
-
-        \node at (7.7, 3.3) {\texttt{\textbf{write}}};
-        \node at (7.7, 1.3) {\texttt{\textbf{dir\_lookup}}};
-
-        \node at (7.7, 0.3) {\texttt{write}};
-
-        \node[font=\itshape] (time) at (0.5, -1) {$\tau$};
-        \draw[line width=0.7pt, ->] (0.5, 3.5) to (0.5, -0.5);
-    \end{tikzpicture}
+    \input{tikzpictures/fig:false-mkdir-conflict}
     \caption{Возможный сценарий сборки Makefile из листинга~\ref{lst:race3-complex}}
     \label{fig:false-mkdir-conflict}
 \end{figure}
@@ -284,36 +174,8 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=5cm, minimum height=0.9cm] at (3.5,3) {\texttt{lib1: mkdir build}};
-        \node[style=draw, minimum width=5cm, minimum height=0.9cm] at (3.5,2) {\texttt{lib2: mkdir build}};
-        \node[style=draw, minimum width=5cm, minimum height=1.9cm] at (3.5,0.5) {\texttt{lib2: build\_library}};
-
-        \node[align=left, text width=3cm] (build) at (12.5,3) {\texttt{./build}};
-        \node[align=left, text width=3cm] (buildaout) at (12.5,0) {\texttt{./build/lib1.a}};
-
-        \draw[->, shorten >=4pt, shorten <=4pt] (6,3) -- (11,3);
-        \draw[thick,  -, shorten <=4pt] (6,2) -- (9,2);
-        \draw[thick,  ->, shorten >=4pt] (9,2) to[in=180, out=0] (11,3);
-
-        \draw[-, shorten <=4pt] (6,1) -- (9,1);
-        \draw[->, shorten >=4pt] (9,1) to[in=180, out=0] (11,3);
-
-        \draw[thick, -, shorten <=4pt] (6,1) -- (9,1);
-        \draw[thick, ->, shorten >=4pt] (9,1) to[in=180, out=0] (11,3);
-
-        \draw[->, shorten >=4pt, shorten <=4pt] (6,0) -- (11,0);
-
-        \node at (7.7, 3.3) {\texttt{write}};
-        \node at (7.7, 2.3) {\textbf{failed \texttt{write}}};
-        \node at (7.7, 1.3) {\textbf{\texttt{dir\_lookup}}};
-
-        \node at (7.7, 0.3) {\texttt{write}};
-
-        \node[font=\itshape] (time) at (0.5, -1) {$\tau$};
-        \draw[line width=0.7pt, ->] (0.5, 3.5) to (0.5, -0.5);
-    \end{tikzpicture}
-    \caption{Схема~\ref{fig:false-mkdir-conflict} с учитыванием неуспешных \texttt{mkdir}}
+    \input{tikzpictures/fig:false-mkdir-conflict-fixed}
+    \caption{Учитывание неуспешных \texttt{mkdir}}
     \label{fig:false-mkdir-conflict-fixed}
 \end{figure}
 
@@ -358,25 +220,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (0, -0.25) {write};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (3, -0.25) {read};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (6, -0.25) {read};
-
-        \node[font=\scriptsize] at (1.5, -1.4) {Конфликтуют};
-        \node[font=\scriptsize] at (4.5, -1.4) {Не конфликтуют};
-
-        \draw (0.9,-0.75) -- (0.9,-1);
-        \draw (0.9,-1) -- (2.1,-1);
-        \draw (2.1,-1) -- (2.1,-0.75);
-
-        \draw (3.9,-0.75) -- (3.9,-1);
-        \draw[dashed] (3.9,-1) -- (5.1,-1);
-        \draw (5.1,-1) -- (5.1,-0.75);
-
-        \node[font=\itshape] (time) at (8.3, -1.5) {$\tau$};
-        \draw[line width=0.7pt, ->] (7, -1.5) to (8, -1.5);
-    \end{tikzpicture}
+    \input{tikzpictures/fig:naive-conflict-break}
     \caption{Контрпример для наивного алгоритма}
     \label{fig:naive-conflict-break}
 \end{figure}
@@ -394,51 +238,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (0, -0.25) {write};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (3, -0.25) {read};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (6, -0.25) {read};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (9, -0.25) {write};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (12, -0.25) {read};
-
-        \node[gray, font=\scriptsize] at (0.9, 0.05) {\texttt{1}};
-        \node[gray, font=\scriptsize] at (3.9, 0.05) {\texttt{2}};
-        \node[gray, font=\scriptsize] at (6.9, 0.05) {\texttt{3}};
-        \node[gray, font=\scriptsize] at (9.9, 0.05) {\texttt{4}};
-        \node[gray, font=\scriptsize] at (12.9, 0.05) {\texttt{5}};
-
-        % 0-1
-        \draw[->, shorten >=1pt, shorten <=1pt] (1.1,-0.6) -- (1.9,-0.6);
-
-        % 2-3
-        \draw[->, shorten >=1pt, shorten <=1pt] (7.1,-0.6) -- (7.9,-0.6);
-
-        % 3-4
-        \draw[->, shorten >=1pt, shorten <=1pt] (10.1,-0.6) -- (10.9,-0.6);
-
-        % 1-3
-        \draw (3.9,-0.75) -- (3.9,-1.1);
-        \draw (3.9,-1.1) -- (8.2,-1.1);
-        \draw[->, shorten >=1pt] (8.2,-1.1) -- (8.2,-0.75);
-
-        % 0-2
-        \draw (0.8,-0.75) -- (0.8,-1.2);
-        \draw (0.8,-1.2) -- (5.1,-1.2);
-        \draw[->, shorten >=1pt] (5.1,-1.2) -- (5.1,-0.75);
-
-        % 0-3
-        \draw (0.7,-0.75) -- (0.7,-1.3);
-        \draw (0.7,-1.3) -- (8.3,-1.3);
-        \draw[->, shorten >=1pt] (8.3,-1.3) -- (8.3,-0.75);
-
-        % 0-4
-        \draw (0.6,-0.75) -- (0.6,-1.4);
-        \draw (0.6,-1.4) -- (11.2,-1.4);
-        \draw[->, shorten >=1pt] (11.2,-1.4) -- (11.2,-0.75);
-
-        \node[font=\itshape] (time) at (13.3, -1.5) {$\tau$};
-        \draw[line width=0.7pt, ->] (12, -1.5) to (13, -1.5);
-    \end{tikzpicture}
+    \input{tikzpictures/fig:all-conflicts}
     \caption{Последовательность доступов с указанными конфликтами}
     \label{fig:all-conflicts}
 \end{figure}
@@ -447,41 +247,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (0, -0.25) {write};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (3, -0.25) {read};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (6, -0.25) {read};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (9, -0.25) {write};
-        \node[style=draw, minimum width=2.2cm, minimum height=1cm] at (12, -0.25) {read};
-
-        \node[gray, font=\scriptsize] at (0.9, 0.05) {\texttt{1}};
-        \node[gray, font=\scriptsize] at (3.9, 0.05) {\texttt{2}};
-        \node[gray, font=\scriptsize] at (6.9, 0.05) {\texttt{3}};
-        \node[gray, font=\scriptsize] at (9.9, 0.05) {\texttt{4}};
-        \node[gray, font=\scriptsize] at (12.9, 0.05) {\texttt{5}};
-
-        % 0-1
-        \draw[->, shorten >=1pt, shorten <=1pt] (1.1,-0.6) -- (1.9,-0.6);
-
-        % 2-3
-        \draw[->, shorten >=1pt, shorten <=1pt] (7.1,-0.6) -- (7.9,-0.6);
-
-        % 3-4
-        \draw[->, shorten >=1pt, shorten <=1pt] (10.1,-0.6) -- (10.9,-0.6);
-
-        % 0-2
-        \draw (0.8,-0.75) -- (0.8,-1.1);
-        \draw (0.8,-1.1) -- (5.1,-1.1);
-        \draw[->, shorten >=1pt] (5.1,-1.1) -- (5.1,-0.75);
-
-        % 1-3
-        \draw (3.9,-0.75) -- (3.9,-1.2);
-        \draw (3.9,-1.2) -- (8.2,-1.2);
-        \draw[->, shorten >=1pt] (8.2,-1.2) -- (8.2,-0.75);
-
-        \node[font=\itshape] (time) at (13.3, -1.5) {$\tau$};
-        \draw[line width=0.7pt, ->] (12, -1.5) to (13, -1.5);
-    \end{tikzpicture}
+    \input{tikzpictures/fig:stripped-conflicts}
     \caption{Последовательность доступов с удалёнными избыточными конфликтами}
     \label{fig:stripped-conflicts}
 \end{figure}
@@ -499,23 +265,7 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c1) at (0, 0) {$C^k_1$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c2) at (1.5, 0) {$C^k_2$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c3) at (3, 0) {$C^k_3$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c4) at (4.5, 0) {$C^k_4$};
-
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (n1) at (7, 0) {$N^n_1$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (n2) at (8.5, 0) {$N^n_2$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (n3) at (10, 0) {$N^n_3$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (n4) at (11.5, 0) {$N^n_4$};
-
-        \draw[->, shorten >=1pt, shorten <=1pt] (c1) -- (c2);
-        \draw[->, shorten >=1pt, shorten <=1pt] (c2) -- (c3);
-        \draw[->, shorten >=1pt, shorten <=1pt] (c3) -- (c4);
-
-
-    \end{tikzpicture}
+    \input{tikzpictures/fig:cn-chains}
     \caption{Рёбра $P$ на цепочках $C$ и $N$}
     \label{fig:cn-chains}
 \end{figure}
@@ -524,35 +274,9 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c1) at (0, 0) {$C^{k-1}_1$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c2) at (1.5, 0) {$C^{k-1}_2$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c3) at (3, 0) {$C^{k-1}_3$};
-
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (n1) at (5, 0) {$N^k_1$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (n2) at (6.5, 0) {$N^k_2$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (n3) at (8, 0) {$N^k_3$};
-
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c4) at (10, 0) {$C^{k+1}_1$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c5) at (11.5, 0) {$C^{k+1}_2$};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c6) at (13, 0) {$C^{k+1}_3$};
-
-        \draw[->, shorten >=1pt, shorten <=1pt] (c1) -- (c2);
-        \draw[->, shorten >=1pt, shorten <=1pt] (c2) -- (c3);
-
-        \draw[->, shorten >=1pt, shorten <=1pt] (c3) to[out=320,in=220] (n1);
-        \draw[->, shorten >=1pt, shorten <=1pt] (c3) to[out=320,in=220] (n2);
-        \draw[->, shorten >=1pt, shorten <=1pt] (c3) to[out=320,in=220] (n3);
-
-        \draw[->, shorten >=1pt, shorten <=1pt] (n1) to[out=40,in=140] (c4);
-        \draw[->, shorten >=1pt, shorten <=1pt] (n2) to[out=40,in=140] (c4);
-        \draw[->, shorten >=1pt, shorten <=1pt] (n3) to[out=40,in=140] (c4);
-
-        \draw[->, shorten >=1pt, shorten <=1pt] (c4) -- (c5);
-        \draw[->, shorten >=1pt, shorten <=1pt] (c5) -- (c6);
-
-    \end{tikzpicture}
+    \input{tikzpictures/fig:cnc-edges}
     \caption{Рёбра $P$ на последовательности цепочек вида $(C, N, C)$}
+    \label{fig:cnc-edges}
 \end{figure}
 
 Таким образом, между вершинами из соседних цепочек $(C^{k-1}, N^k)$ или $(N^k, C^{k+1})$ присутствует $|N^k|$ рёбер. Их наличие гарантирует существование пути между любым элементом из первой и любым элементом из второй цепочки. Поскольку это верно для всех соседних цепочек, а весь набор доступов $A$ состоит из цепочек чередующихся типов, то любые два доступа из любых двух разных цепочек будут связаны односторонним путём. Следовательно, любые другие рёбра между цепочками будут избыточными.
@@ -576,39 +300,16 @@
 
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}
-
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c11) at (0, 0) {C};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c21) at (1.5, 0) {C};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (n31) at (3.5, 0) {N};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c41) at (5.5, 0) {C};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c51) at (7, 0) {C};
-
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c12) at (0, 2) {C};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c22) at (1.5, 2) {C};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c32) at (3.5, 2) {C};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c42) at (5.5, 2) {C};
-        \node[style=draw, minimum width=1cm, minimum height=1cm] (c52) at (7, 2) {C};
-
-        \draw[->, shorten >=2pt, shorten <=2pt] (c11) -- (c21);
-        \draw[->, shorten >=4pt, shorten <=4pt] (c21) to[out=320,in=220] (n31);
-        \draw[->, shorten >=4pt, shorten <=4pt] (n31) to[out=40,in=140] (c41);
-        \draw[->, shorten >=2pt, shorten <=2pt] (c41) -- (c51);
-
-        \draw[->, shorten >=2pt, shorten <=2pt] (c12) -- (c22);
-        \draw[->, shorten >=2pt, shorten <=2pt] (c22) -- (c32);
-        \draw[->, shorten >=2pt, shorten <=2pt] (c32) -- (c42);
-        \draw[->, shorten >=2pt, shorten <=2pt] (c42) -- (c52);
-
-    \end{tikzpicture}
+    \input{tikzpictures/fig:short-n-chain}
     \caption{Независимость множества $P$ от наличия $N$-цепочек длины 1}
+    \label{fig:short-n-chain}
 \end{figure}
 
 Таким образом, если вместо таблицы конфликтов использовать разделение доступов на критические и некритические, то можно проверять лишь минимальный набор зависимостей, имеющий линейный от числа доступов размер. Этот алгоритм и будет применяться в дальнейшем.
 
 \subsubsection{Применение метода критических доступов для гонок вида \ref{subsec:path-race}}
 
-Прежде были рассмотрены только гонки на содержимом файла (см.~\ref{subsec:file-content-races}). Для них критическим был определен доступ \texttt{write}, а некритическим~--- \texttt{read}. Остальные виды доступов не рассматривались: \texttt{unlink\_path} и \texttt{dir\_access} не связаны с номерами inode, а \texttt{release\_inode} является искусственным доступом для поиска гонок на каталоге.
+Прежде были рассмотрены только гонки на содержимом файла (см.~\ref{subsec:file-content-races}). Для них критическим был определен доступ \texttt{write}, а некритическим~--- \texttt{read}. Остальные виды доступов не рассматривались: \texttt{unlink\_path} и \texttt{dir\_lookup} не связаны с номерами inode, а \texttt{release\_inode} является искусственным доступом для поиска гонок на каталоге.
 
 В отличие от предыдущего случая, поиск гонок на пути к файлу требует список операций на пути, а не на номере inode (см.~\ref{subsec:path-race}). Среди всего списка доступов (см.~\ref{subsec:cricital-accesses}), с путями работают \texttt{read}, \texttt{write} и \texttt{unlink}. Есть также доступ типа \texttt{dir\_lookup}, но он предназначен только для поиска гонок с созданием директорий (см.~\ref{subsec:dir-race}) и не будет рассмотрен здесь.
 
