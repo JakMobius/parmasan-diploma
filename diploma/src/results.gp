@@ -1,7 +1,7 @@
 #!/usr/local/bin/gnuplot
 
 set terminal tikz size 14,8 createstyle
-set output 'races.tex'
+set output 'tikzpictures/races.tex'
 
 # Setting plot styles
 set bars fullwidth
@@ -24,7 +24,7 @@ set datafile separator ","
 filename = 'src/races.dat'
 
 # Adding labels above the bars
-stats 'src/races.dat' using 2:4 nooutput
+stats filename using 2:4 nooutput
 num_records = STATS_records
 
 #
@@ -33,8 +33,8 @@ races = ''
 
 do for [i=2:num_records] {
     label_x = i
-    project_name = system(sprintf("awk 'NR==%d {print $1}' FS=',' src/races.dat", i))
-    total_races = system(sprintf("awk 'NR==%d {print $2+$4}' FS=',' src/races.dat", i))
+    project_name = system(sprintf("awk 'NR==%d {print $1}' FS=',' %s", i, filename))
+    total_races = system(sprintf("awk 'NR==%d {print $2+$4}' FS=',' %s", i, filename))
 
     # Adjusting label positions for Known, Missed, New categories
     set label at label_x - 1.3, total_races + 0.2 project_name left font ",8" rotate by 50
