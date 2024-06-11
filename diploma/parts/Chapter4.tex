@@ -267,18 +267,22 @@
 
 Рассмотрим одну из новых гонок, обнаруженных санитайзером в проекте Vim.
 
+\begin{figure}[H]
 \lstinputlisting[
     caption={Диагностика санитайзера при сборке проекта Vim},
     language=bash,
     label=lst:vim-race,
 ]{src/vim-new-race-report.txt}
+\end{figure}
 
 Диагностика, изображенная на листинге~\ref{lst:vim-race}, сообщает о гонке на пути к файлу (\ref{subsec:file-content-races}). Как было замечено в пункте~\ref{sec:Chapter2}, гонки этой категории нельзя обнаружить режимом \texttt{-{}-shuffle}. Обратимся к рецептам целей, указанных в диагностике (\texttt{src/po/Makefile:216}).
 
+\begin{figure}[H]
 \lstinputlisting[
     caption={Фрагмент схемы сборки Vim},
     language=bash,
     firstnumber=216]{src/vim-new-race.make}
+\end{figure}
 
 Цели, указанные в диагностике, используют одно и то же имя (\texttt{LINGUAS}) для временного файла, что приводит к гонке на этом пути.
 
