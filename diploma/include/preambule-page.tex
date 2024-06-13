@@ -5,3 +5,8 @@
 \usepackage{fancyhdr}
 \pagestyle{fancy}
 \setlength{\headheight}{16pt}
+
+\usepackage[explicit]{titlesec}
+\titleformat{\section}{\captionfont\centering\scshape}{\textbf{\thesection}}{1em}{\textbf{\MakeUppercase{#1}}}
+\titleformat{\subsection}{\captionfont\centering\scshape}{\textbf{\thesubsection}}{1em}{\textbf{#1}}
+\titleformat{\subsubsection}{\captionfont\centering\scshape}{\textbf{\thesubsubsection}}{1em}{\textbf{#1}}
