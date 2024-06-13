@@ -1,61 +1,55 @@
 \begin{tikzpicture}
-    % symbol width = 10.2 / 47 = 0.217
+    \def \Start{-4.97}
+    \def \SymWidth{0.2115}
+    \def \LineStart{\Start + \SymWidth * \StartChar}%
+    \def \LineEnd{\Start + \SymWidth * \EndChar}%
+    \def \TextPos{\Start + \SymWidth * \StartChar + \TextWidth / 2 - 0.1}%
+    \newcommand{\DrawText}[2]{
+        \node[align=flush left, font=\footnotesize, minimum width=\TextWidth cm, text width=\TextWidth cm] at (\TextPos, #1) {#2};
+    }
+    \newcommand{\DrawLine}[1] {
+        \draw[line width=0.7pt] (\LineStart, #1) -- (\LineStart, -0.25) -- (\LineEnd, -0.25);
+    }
+
     \node at (0, 0) {\texttt{ASYNC READ 16 /lib64/libc.so.6 1005 15 646356 7}};
 
     % ASYNC:
-    % -5.1 + 0.217 * 0 = -5.1
-    % -5.1 + 0.217 * 5 = -4.015
-    \draw[line width=0.7pt] (-5.1, -0.25) -- (-4.0375, -0.25);
-    \draw[line width=0.7pt] (-5.1, -0.25) -- (-5.1, -4.5);
-    \node[align=flush left, font=\footnotesize, minimum width=4cm, text width=4cm] at (-3.2, -5.1) {Флаг синхронности сообщения.};
-
+    \def \StartChar{0} \def \EndChar{5} \def \TextWidth{4}
+    \DrawLine{-4.5}
+    \DrawText{-5.1}{Код возврата системного вызова \texttt{open}}.
 
     % READ:
-    % -5.1 + 0.217 * 6 = -3.798
-    % -5.1 + 0.217 * 10 = -2.93
-    \draw[line width=0.7pt] (-3.798, -0.25) -- (-2.93, -0.25);
-    \draw[line width=0.7pt] (-3.798, -0.25) -- (-3.798, -3);
-    \node[align=flush left, font=\footnotesize, minimum width=5cm, text width=5cm] at (-1.398, -3.8) {Название события. В данном случае~--- \texttt{READ}~--- чтение файла.};
+    \def \StartChar{6} \def \EndChar{10} \def \TextWidth{5}
+    \DrawLine{-3}
+    \DrawText{-3.8}{Название события. В данном случае~--- \texttt{READ}~--- чтение файла.}.
 
     % 16:
-    % -5.1 + 0.217 * 11 = -2.713
-    % -5.1 + 0.217 * 13 = -2.279
-    \draw[line width=0.7pt] (-2.713, -0.25) -- (-2.279, -0.25);
-    \draw[line width=0.7pt] (-2.713, -0.25) -- (-2.713, -2);
-    \node[align=flush left, font=\footnotesize, minimum width=4cm, text width=4cm] at (-0.813, -2.6) {Длина строки, следующей далее.};
+    \def \StartChar{11} \def \EndChar{13} \def \TextWidth{4}
+    \DrawLine{-2}
+    \DrawText{-2.6}{Длина строки, следующей далее.}
 
     % /lib64/libc.so.6:
-    % -5.1 + 0.217 * 14 = -2.062
-    % -5.1 + 0.217 * 30 = 1.41
-    \draw[line width=0.7pt] (-2.062, -0.25) -- (1.41, -0.25);
-    \draw[line width=0.7pt] (-2.062, -0.25) -- (-2.062, -0.5);
-    \node[align=flush left, font=\footnotesize, minimum width=3cm, text width=3cm] at (-0.662, -1.3) {Путь, по которому процесс обратился к файлу.};
+    \def \StartChar{14} \def \EndChar{30} \def \TextWidth{3}
+    \DrawLine{-0.5}
+    \DrawText{-1.3}{Путь, по которому процесс обратился к файлу.}
 
     % 1005:
-    % -5.1 + 0.217 * 31 = 1.627
-    % -5.1 + 0.217 * 35 = 2.495
-    \draw[line width=0.7pt] (1.627, -0.25) -- (2.495, -0.25);
-    \draw[line width=0.7pt] (1.627, -0.25) -- (1.627, -4);
-    \node[align=flush left, font=\footnotesize, minimum width=6cm, text width=6cm] at (4.527, -4.6) {pid процесса, производящего доступ к файлу.};
+    \def \StartChar{31} \def \EndChar{35} \def \TextWidth{6}
+    \DrawLine{-4}
+    \DrawText{-4.6}{pid процесса, производящего доступ к файлу.};
 
     % 15:
-    % -5.1 + 0.217 * 36 = 2.712
-    % -5.1 + 0.217 * 38 = 3.146
-    \draw[line width=0.7pt] (2.712, -0.25) -- (3.146, -0.25);
-    \draw[line width=0.7pt] (2.712, -0.25) -- (2.712, -3);
-    \node[align=flush left, font=\footnotesize, minimum width=4cm, text width=4cm] at (4.612, -3.6) {Device number файловой системы.};
+    \def \StartChar{36} \def \EndChar{38} \def \TextWidth{4}
+    \DrawLine{-3}
+    \DrawText{-3.6}{Device number файловой системы.};
 
     % 646356:
-    % -5.1 + 0.217 * 39 = 3.363
-    % -5.1 + 0.217 * 45 = 4.665
-    \draw[line width=0.7pt] (3.363, -0.25) -- (4.665, -0.25);
-    \draw[line width=0.7pt] (3.363, -0.25) -- (3.363, -2);
-    \node[align=flush left, font=\footnotesize, minimum width=4cm, text width=4cm] at (5.263, -2.6) {Номер inode прочитанного файла.};
+    \def \StartChar{39} \def \EndChar{45} \def \TextWidth{4}
+    \DrawLine{-2}
+    \DrawText{-2.6}{Номер inode прочитанного файла.};
 
     % 7:
-    % -5.1 + 0.217 * 46 = 4.882
-    % -5.1 + 0.217 * 47 = 5.099
-    \draw[line width=0.7pt] (4.882, -0.25) -- (5.099, -0.25);
-    \draw[line width=0.7pt] (4.882, -0.25) -- (4.882, -0.5);
-    \node[align=flush left, font=\footnotesize, minimum width=3cm, text width=3cm] at (6.282, -1.3) {Код возврата системного вызова \texttt{open}.};
+    \def \StartChar{46} \def \EndChar{47} \def \TextWidth{3}
+    \DrawLine{-0.5}
+    \DrawText{-1.3}{Код возврата системного вызова \texttt{open}.};
 \end{tikzpicture}
